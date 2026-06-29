@@ -14,7 +14,9 @@ On the first generation, the bridge downloads these Hugging Face models automati
 - `Aratako/Irodori-TTS-600M-v3-VoiceDesign`
 - `Aratako/Irodori-TTS-500M-v3`
 
-The download can take several minutes. After that, the files are cached locally.
+The download can take several minutes. `Start Bridge Lab Only.command` waits up
+to 10 minutes for the first VoiceDesign startup by default. After that, the files
+are cached locally.
 
 ## Where Irodori-TTS Goes
 

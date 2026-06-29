@@ -313,6 +313,9 @@ def test_beginner_setup_points_to_irodori_and_hugging_face_model_ids():
     assert "LAB_VOICE_MODEL=\"${IRODORI_LAB_VOICE_MODEL:-Aratako/Irodori-TTS-600M-v3-VoiceDesign}\"" in bridge_start
     assert "FINAL_BASE_CHECKPOINT=\"${IRODORI_FINAL_BASE_CHECKPOINT:-Aratako/Irodori-TTS-500M-v3}\"" in bridge_start
     assert "FINAL_ENGINE_CONFIG_AUTO=1" in bridge_start
+    assert "IRODORI_LAB_ENGINE_START_TIMEOUT=\"${IRODORI_LAB_ENGINE_START_TIMEOUT:-600}\"" in bridge_start
+    assert "IRODORI_FINAL_ENGINE_START_TIMEOUT=\"${IRODORI_FINAL_ENGINE_START_TIMEOUT:-300}\"" in bridge_start
+    assert "First model download can be slow." in bridge_start
 
 
 def test_final_artifact_cards_can_be_hidden_or_deleted_with_clear_export_wording():

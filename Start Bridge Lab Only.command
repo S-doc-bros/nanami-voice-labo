@@ -35,6 +35,8 @@ export IRODORI_LOCAL_ENGINE_ENDPOINT="http://$IRODORI_LAB_ENGINE_HOST:$IRODORI_L
 export IRODORI_FINAL_ENGINE_HOST="${IRODORI_FINAL_ENGINE_HOST:-127.0.0.1}"
 export IRODORI_FINAL_ENGINE_PORT="${IRODORI_FINAL_ENGINE_PORT:-8090}"
 export IRODORI_FINAL_ENGINE_ENDPOINT="http://$IRODORI_FINAL_ENGINE_HOST:$IRODORI_FINAL_ENGINE_PORT"
+export IRODORI_LAB_ENGINE_START_TIMEOUT="${IRODORI_LAB_ENGINE_START_TIMEOUT:-600}"
+export IRODORI_FINAL_ENGINE_START_TIMEOUT="${IRODORI_FINAL_ENGINE_START_TIMEOUT:-300}"
 export IRODORI_DEFAULT_MODEL="${IRODORI_DEFAULT_MODEL:-irodori-v3-lab-engine}"
 export NANAMI_VOICE_PRESET_DIR="$LAB_PRESET_DIR"
 export IRODORI_VOICE_LAB_ONLY="1"
@@ -171,9 +173,13 @@ if ! curl -fsS --max-time 2 "$IRODORI_LOCAL_ENGINE_ENDPOINT/health" >/dev/null 2
     --irodori-repo "$LAB_ENGINE_IRODORI_REPO" \
     > "$LAB_ENGINE_LOG" 2>&1 &
 
-  for _ in {1..90}; do
+  echo "Waiting for VoiceDesign engine, up to ${IRODORI_LAB_ENGINE_START_TIMEOUT}s. First model download can be slow."
+  for ((WAITED = 1; WAITED <= IRODORI_LAB_ENGINE_START_TIMEOUT; WAITED++)); do
     if curl -fsS --max-time 2 "$IRODORI_LOCAL_ENGINE_ENDPOINT/health" >/dev/null 2>&1; then
       break
+    fi
+    if (( WAITED % 30 == 0 )); then
+      echo "Still waiting for VoiceDesign engine... ${WAITED}s"
     fi
     sleep 1
   done
@@ -197,9 +203,13 @@ if ! curl -fsS --max-time 2 "$IRODORI_FINAL_ENGINE_ENDPOINT/health" >/dev/null 2
     --no-preload \
     > "$FINAL_ENGINE_LOG" 2>&1 &
 
-  for _ in {1..30}; do
+  echo "Waiting for final voice engine, up to ${IRODORI_FINAL_ENGINE_START_TIMEOUT}s."
+  for ((WAITED = 1; WAITED <= IRODORI_FINAL_ENGINE_START_TIMEOUT; WAITED++)); do
     if curl -fsS --max-time 2 "$IRODORI_FINAL_ENGINE_ENDPOINT/health" >/dev/null 2>&1; then
       break
+    fi
+    if (( WAITED % 30 == 0 )); then
+      echo "Still waiting for final voice engine... ${WAITED}s"
     fi
     sleep 1
   done

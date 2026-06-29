@@ -74,7 +74,9 @@ downloaded from Hugging Face automatically:
 - `Aratako/Irodori-TTS-600M-v3-VoiceDesign`
 - `Aratako/Irodori-TTS-500M-v3`
 
-After the first download, the models are cached locally.
+`Start Bridge Lab Only.command` waits up to 10 minutes for the VoiceDesign engine
+on first startup. After the first download, the models are cached locally and
+startup is much faster.
 
 See [MODEL_SETUP.md](MODEL_SETUP.md) if you want to use manually downloaded
 `model.safetensors` files.
@@ -121,6 +123,8 @@ http://localhost:8088/v1
 - `IRODORI_SPEAKER_HF_HOME`: Hugging Face cache used by Speaker Inversion.
 - `IRODORI_SCRIPTWRITER_ENDPOINT`: optional OpenAI-compatible scriptwriter endpoint.
 - `IRODORI_SCRIPTWRITER_AUTOSTART=0`: disable local scriptwriter autostart.
+- `IRODORI_LAB_ENGINE_START_TIMEOUT`: seconds to wait for the VoiceDesign engine. Default: `600`.
+- `IRODORI_FINAL_ENGINE_START_TIMEOUT`: seconds to wait for the final test engine. Default: `300`.
 
 ## Irodori-TTS Dependency
 
