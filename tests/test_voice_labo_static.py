@@ -378,6 +378,21 @@ def test_final_test_tab_uses_playground_layout_and_card_editing():
     assert ".final-test-playground" in styles
 
 
+def test_removed_seed_generate_button_does_not_break_generation_handlers():
+    index = read("index.html")
+    app = read("app.js")
+
+    assert 'id="generate"' not in index
+    assert "setOptionalDisabled" in app
+    assert '$("generate").disabled' not in app
+    assert '$("generateTop").disabled' not in app
+    assert 'setOptionalDisabled("generate", true);' in app
+    assert 'setOptionalDisabled("generate", false);' in app
+    assert 'setOptionalDisabled("generateTop", true);' in app
+    assert 'setOptionalDisabled("generateTop", false);' in app
+    assert "20260629-generate-fix1" in index
+
+
 def test_file_protocol_mode_warns_and_preserves_seed_layout():
     index = read("index.html")
     styles = read("styles.css")
@@ -452,6 +467,7 @@ if __name__ == "__main__":
     test_beginner_setup_points_to_irodori_and_hugging_face_model_ids()
     test_final_artifact_cards_can_be_hidden_or_deleted_with_clear_export_wording()
     test_final_test_tab_uses_playground_layout_and_card_editing()
+    test_removed_seed_generate_button_does_not_break_generation_handlers()
     test_file_protocol_mode_warns_and_preserves_seed_layout()
     test_expression_header_uses_compact_layout()
     test_expression_generation_can_use_direct_voice_design_without_reference_audio()

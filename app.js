@@ -28,6 +28,10 @@ import {
 } from "./lib/voice-store.js?v=20260629-final-clean1";
 
 const $ = (id) => document.getElementById(id);
+const setOptionalDisabled = (id, disabled) => {
+  const element = $(id);
+  if (element) element.disabled = disabled;
+};
 const DEFAULT_VOICE_CAPTION = "20代前半の自然な日本語話者で、中音域のクリアな声。近い距離感で、本文の感情に合わせて自然に読み上げる。息づかいは控えめ。";
 const LEGACY_DEFAULT_VOICE_CAPTIONS = new Set([
   "自然な日本語話者。近い距離感で、声色はクリア、息づかいは控えめに、本文の感情に合わせて読み上げる。",
@@ -4130,8 +4134,8 @@ async function generateSpeech() {
   const settings = readSettings();
   saveSettings(settings);
   await prepareTextGenerationWorkspace(settings);
-  $("generate").disabled = true;
-  $("generateTop").disabled = true;
+  setOptionalDisabled("generate", true);
+  setOptionalDisabled("generateTop", true);
   $("serverStatus").textContent = "生成中";
   try {
     if (settings.seed) log(`Seed固定中: ${settings.seed}。違うテイクにしたい時はSeedのランダムを押してください。`);
@@ -4160,8 +4164,8 @@ async function generateSpeech() {
     log(error instanceof Error ? error.message : String(error));
     log("接続は維持しています。入力、参照音声、生成パラメータを確認してください。");
   } finally {
-    $("generate").disabled = false;
-    $("generateTop").disabled = false;
+    setOptionalDisabled("generate", false);
+    setOptionalDisabled("generateTop", false);
   }
 }
 
@@ -4169,8 +4173,8 @@ async function generateAndSaveNewCard() {
   const settings = readSettings();
   saveSettings(settings);
   await prepareTextGenerationWorkspace(settings);
-  $("generate").disabled = true;
-  $("generateTop").disabled = true;
+  setOptionalDisabled("generate", true);
+  setOptionalDisabled("generateTop", true);
   $("serverStatus").textContent = "生成中";
   try {
     if (settings.seed) log(`Seed固定中: ${settings.seed}。違うテイクにしたい時はSeedのランダムを押してください。`);
@@ -4203,8 +4207,8 @@ async function generateAndSaveNewCard() {
     log(error instanceof Error ? error.message : String(error));
     log("生成に失敗したため、新規カードは保存していません。");
   } finally {
-    $("generate").disabled = false;
-    $("generateTop").disabled = false;
+    setOptionalDisabled("generate", false);
+    setOptionalDisabled("generateTop", false);
   }
 }
 
