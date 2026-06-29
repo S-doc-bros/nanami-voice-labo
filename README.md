@@ -182,3 +182,15 @@ Before publishing or tagging a release, check that:
 
 The included `.gitignore` is intentionally conservative and excludes common audio,
 model, log, cache, and export artifacts.
+
+## License
+
+NANAMI VOICE LABO is released under the MIT License. See [LICENSE](LICENSE).
+
+This license applies to the NANAMI VOICE LABO source code and the reviewed sample
+files intentionally included in this repository. It does not grant rights to
+Irodori-TTS, Irodori model weights, third-party dependencies, private voice
+recordings, generated datasets, or user-created speaker artifacts.
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency, model, and
+audio-material notes.
