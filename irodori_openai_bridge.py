@@ -92,6 +92,9 @@ if not SPEAKER_HF_HOME.exists():
 SPEAKER_UPLOAD_MAX_BYTES = int(os.environ.get("IRODORI_SPEAKER_UPLOAD_MAX_BYTES", str(640 * 1024 * 1024)))
 SPEAKER_UPLOAD_MAX_FILE_BYTES = int(os.environ.get("IRODORI_SPEAKER_UPLOAD_MAX_FILE_BYTES", str(64 * 1024 * 1024)))
 SPEAKER_UPLOAD_MAX_CLIPS = int(os.environ.get("IRODORI_SPEAKER_UPLOAD_MAX_CLIPS", "240"))
+SPEAKER_PREPARE_TIMEOUT_SECONDS_DEFAULT = 3600
+SPEAKER_PREPARE_TIMEOUT_SECONDS_PER_CLIP = int(os.environ.get("IRODORI_SPEAKER_PREPARE_TIMEOUT_SECONDS_PER_CLIP", "20"))
+SPEAKER_PREPARE_TIMEOUT_SECONDS_MAX = int(os.environ.get("IRODORI_SPEAKER_PREPARE_TIMEOUT_SECONDS_MAX", "7200"))
 SPEAKER_JOB_PROCESSES: dict[str, subprocess.Popen[Any]] = {}
 SPEAKER_JOB_LOCK = threading.Lock()
 SPEAKER_PYTHON_DEPENDENCY_CACHE: dict[str, Any] | None = None
@@ -958,7 +961,12 @@ def speaker_process_timeout(job: dict[str, Any], phase: str) -> int:
     except ValueError:
       return 0
   if phase == "prepare_manifest":
-    return 180 if parse_bool(job.get("smoke"), False) else 900
+    if parse_bool(job.get("smoke"), False):
+      return 180
+    clip_count = int(job.get("sample_count") or job.get("clip_count") or 0)
+    per_clip_timeout = clip_count * SPEAKER_PREPARE_TIMEOUT_SECONDS_PER_CLIP
+    scaled_timeout = max(SPEAKER_PREPARE_TIMEOUT_SECONDS_DEFAULT, per_clip_timeout)
+    return min(SPEAKER_PREPARE_TIMEOUT_SECONDS_MAX, scaled_timeout)
   if phase == "train" and parse_bool(job.get("smoke"), False):
     return 900
   return 0
@@ -984,6 +992,7 @@ def run_speaker_process(job_id: str, phase: str, command: list[str]) -> bool:
       SPEAKER_JOB_PROCESSES[job_id] = process
     update_speaker_job(job_id, pid=process.pid, phase=phase)
     timeout_seconds = speaker_process_timeout(job, phase)
+    append_speaker_job_log(job, f"{phase} timeout limit: {timeout_seconds} seconds.")
     try:
       return_code = process.wait(timeout=timeout_seconds if timeout_seconds > 0 else None)
     except subprocess.TimeoutExpired:

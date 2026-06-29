@@ -459,6 +459,18 @@ def test_expression_generation_can_use_direct_voice_design_without_reference_aud
     assert "参照音声を使わず、声の説明と固定Seedから直接表現音を生成します" in app
 
 
+def test_speaker_prepare_timeout_scales_for_large_material_sets():
+    bridge = read("irodori_openai_bridge.py")
+
+    assert "SPEAKER_PREPARE_TIMEOUT_SECONDS_DEFAULT = 3600" in bridge
+    assert "IRODORI_SPEAKER_PREPARE_TIMEOUT_SECONDS" in bridge
+    assert "clip_count = int(job.get(\"sample_count\") or job.get(\"clip_count\") or 0)" in bridge
+    assert "per_clip_timeout = clip_count * SPEAKER_PREPARE_TIMEOUT_SECONDS_PER_CLIP" in bridge
+    assert "max(SPEAKER_PREPARE_TIMEOUT_SECONDS_DEFAULT, per_clip_timeout)" in bridge
+    assert 'append_speaker_job_log(job, f"{phase} timeout limit: {timeout_seconds} seconds.")' in bridge
+    assert "else 900" not in bridge
+
+
 if __name__ == "__main__":
     test_generation_payload_uses_45_second_max_duration()
     test_expression_sets_are_gendered_and_include_power_shout()
@@ -484,4 +496,5 @@ if __name__ == "__main__":
     test_file_protocol_mode_warns_and_preserves_seed_layout()
     test_expression_header_uses_compact_layout()
     test_expression_generation_can_use_direct_voice_design_without_reference_audio()
+    test_speaker_prepare_timeout_scales_for_large_material_sets()
     print("voice labo static tests passed")
