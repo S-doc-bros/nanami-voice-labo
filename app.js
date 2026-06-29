@@ -42,6 +42,7 @@ const LAB_ENGINE_PROFILE = "nanami-labo-600m-v3-voicedesign-default";
 const FINAL_ARTIFACT_NOTES_KEY = "nanami-voice-labo-final-artifact-notes";
 const FINAL_ARTIFACT_HIDDEN_KEY = "nanami-voice-labo-final-artifact-hidden";
 const DEFAULT_FINAL_ARTIFACT_DESCRIPTION = "このラボで作成した話者埋め込み成果物です。";
+const FINAL_ARTIFACT_TEST_MODEL = "irodori-nanami-final-500m";
 const DEFAULT_REFERENCE_CFG_SPEAKER = 1.0;
 const DEFAULT_EXPRESSION_SOURCE_MODE = "direct";
 const FINAL_ARTIFACT_TEST_SETTINGS = {
@@ -4018,7 +4019,7 @@ async function generateFinalArtifactTest() {
   const settings = {
     ...readSettings(),
     ...FINAL_ARTIFACT_TEST_SETTINGS,
-    model: artifact.model || "irodori-nanami-final-500m",
+    model: FINAL_ARTIFACT_TEST_MODEL,
     voice: "none",
     text,
     caption: "",

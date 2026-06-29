@@ -55,8 +55,10 @@ def resolve_checkpoint_path(base_checkpoint: str, work_dir: Path = WORK_DIR) -> 
     raw_env_checkpoint = os.environ.get("LIFEMATE_NANAMI_IRODORI_CHECKPOINT")
     if raw_env_checkpoint:
         env_checkpoint = Path(raw_env_checkpoint).expanduser()
+        if not env_checkpoint.is_absolute():
+            env_checkpoint = work_dir / env_checkpoint
         if env_checkpoint.is_file():
-            return str(env_checkpoint.resolve())
+            return str(env_checkpoint)
 
     raw = str(base_checkpoint).strip()
     if raw.endswith(".safetensors") or raw.startswith(("/", "./", "../", "~")):
@@ -64,7 +66,7 @@ def resolve_checkpoint_path(base_checkpoint: str, work_dir: Path = WORK_DIR) -> 
         if not candidate.is_absolute():
             candidate = work_dir / candidate
         if candidate.is_file():
-            return str(candidate.resolve())
+            return str(candidate)
 
     repo_leaf = raw.rstrip("/").split("/")[-1] or "Irodori-TTS-500M-v3"
     for candidate in (
@@ -72,7 +74,7 @@ def resolve_checkpoint_path(base_checkpoint: str, work_dir: Path = WORK_DIR) -> 
         work_dir / "models" / raw / "model.safetensors",
     ):
         if candidate.is_file():
-            return str(candidate.resolve())
+            return str(candidate)
 
     return raw
 

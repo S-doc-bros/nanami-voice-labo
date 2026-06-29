@@ -83,6 +83,7 @@ def test_final_artifact_test_uses_stable_ref_embed_settings_without_live_eq():
     index = read("index.html")
 
     assert "FINAL_ARTIFACT_TEST_SETTINGS" in app
+    assert 'FINAL_ARTIFACT_TEST_MODEL = "irodori-nanami-final-500m"' in app
     assert "numSteps: 24" in app
     assert 'cfgMode: "independent"' in app
     assert "cfgText: 1.0" in app
@@ -93,6 +94,8 @@ def test_final_artifact_test_uses_stable_ref_embed_settings_without_live_eq():
     assert 'scheduleMode: "linear"' in app
     assert "trim_tail: Boolean(settings.trimTail)" in client
     assert "...FINAL_ARTIFACT_TEST_SETTINGS" in app
+    assert "model: FINAL_ARTIFACT_TEST_MODEL" in app
+    assert 'model: artifact.model || "irodori-nanami-final-500m"' not in app
     assert 'latestSourceKind === "final-artifact"' in app
     assert "成果物テストは未加工で再生します" in app
     assert "function resetPlayerToStart" in app
@@ -103,6 +106,15 @@ def test_final_artifact_test_uses_stable_ref_embed_settings_without_live_eq():
     assert '<option value="clarity" selected>クリア優先</option>' not in index
     assert '$("speakerMaterialProfile")?.value || "all"' in app
     assert "SPEAKER_MATERIAL_PROFILES[id] || SPEAKER_MATERIAL_PROFILES.all" in app
+
+
+def test_lab_engine_keeps_safetensors_symlink_path_for_checkpoint_loader():
+    engine = read("lab_v3_engine_server.py")
+
+    assert "return str(candidate.resolve())" not in engine
+    assert "return str(env_checkpoint.resolve())" not in engine
+    assert "return str(candidate)" in engine
+    assert "return str(env_checkpoint)" in engine
 
 
 def test_final_artifact_synthesis_bypasses_generic_irodori_repo_ready_check():
@@ -455,6 +467,7 @@ if __name__ == "__main__":
     test_general_speech_batch_retries_and_continues_after_transient_fetch_errors()
     test_speaker_build_polling_recovers_from_temporary_fetch_errors()
     test_final_artifact_test_uses_stable_ref_embed_settings_without_live_eq()
+    test_lab_engine_keeps_safetensors_symlink_path_for_checkpoint_loader()
     test_final_artifact_synthesis_bypasses_generic_irodori_repo_ready_check()
     test_standard_speaker_build_scales_steps_internally_but_hides_numbers_in_ui()
     test_cfg_defaults_are_one_for_voice_design_and_reference_generation()
