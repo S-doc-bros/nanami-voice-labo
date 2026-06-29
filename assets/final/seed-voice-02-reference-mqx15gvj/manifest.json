@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "artifact_id": "seed-voice-02-reference-mqx15gvj",
+  "display_name": "seed-voice-02-reference",
+  "description": "NANAMI VOICE LABOで採用した表現音9件から作成した公開サンプル成果物です。",
+  "model": "irodori-speaker-inversion-500m-v3",
+  "speaker_embedding": "checkpoint_final.speaker.safetensors",
+  "source": "nanami-voice-labo-public-sample",
+  "sample_reference_voice": "expression-set",
+  "sample_count": 9,
+  "created_at": "2026-06-28T00:14:49Z",
+  "notes": [
+    "public sample artifact",
+    "mode=standard"
+  ]
+}

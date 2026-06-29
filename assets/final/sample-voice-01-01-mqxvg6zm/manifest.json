@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "artifact_id": "sample-voice-01-01-mqxvg6zm",
+  "display_name": "sample-voice-01-01",
+  "description": "NANAMI VOICE LABOで表現音50件と一般音声100件から作成した公開サンプル成果物です。",
+  "model": "irodori-speaker-inversion-500m-v3",
+  "speaker_embedding": "checkpoint_final.speaker.safetensors",
+  "source": "nanami-voice-labo-public-sample",
+  "sample_reference_voice": "expression-set",
+  "sample_count": 150,
+  "created_at": "2026-06-28T14:49:06Z",
+  "notes": [
+    "public sample artifact",
+    "mode=standard"
+  ]
+}

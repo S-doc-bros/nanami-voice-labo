@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NANAMI VOICE LABO</title>
+    <meta name="description" content="Nanami voice creation and Speaker Inversion local test app powered by Irodori-TTS.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b004d'/%3E%3Cpath d='M16 36c7-20 25-20 32 0' fill='none' stroke='%2338d1df' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='22' cy='36' r='4' fill='white'/%3E%3Ccircle cx='32' cy='28' r='4' fill='white'/%3E%3Ccircle cx='42' cy='36' r='4' fill='white'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css?v=20260629-final-test-ui1">
+  </head>
+  <body data-active-lab-tab="seed">
+    <script>
+      (() => {
+        const validTabs = new Set(["seed", "expression", "review", "finish", "test"]);
+        const setFallbackLabTab = (tabName) => {
+          const activeTab = validTabs.has(tabName) ? tabName : "seed";
+          document.body.dataset.activeLabTab = activeTab;
+          document.querySelectorAll("[data-lab-tab-target]").forEach((button) => {
+            const isActive = button.dataset.labTabTarget === activeTab;
+            button.classList.toggle("is-active", isActive);
+            button.setAttribute("aria-pressed", String(isActive));
+          });
+          document.querySelectorAll("[data-lab-panel]").forEach((panel) => {
+            panel.hidden = panel.dataset.labPanel !== activeTab;
+          });
+          const playerRack = document.getElementById("playerRack");
+          const targetMount = document.getElementById(
+            activeTab === "test"
+              ? "playerMountTest"
+              : activeTab === "finish"
+                ? "playerMountFinish"
+                : activeTab === "review"
+                  ? "playerMountReview"
+                  : "playerMountSeed",
+          );
+          if (playerRack && targetMount && playerRack.parentElement !== targetMount) {
+            targetMount.appendChild(playerRack);
+          }
+        };
+
+        document.addEventListener("DOMContentLoaded", () => {
+          setFallbackLabTab(document.body.dataset.activeLabTab || "seed");
+          if (location.protocol !== "file:") return;
+          document.body.classList.add("file-protocol-mode");
+          document.querySelectorAll("[data-lab-tab-target]").forEach((button) => {
+            button.addEventListener("click", () => setFallbackLabTab(button.dataset.labTabTarget));
+          });
+          const banner = document.createElement("aside");
+          banner.className = "file-protocol-banner";
+          banner.innerHTML = '<strong>HTTPで開いてください</strong><span>このラボは <code>file://</code> 直開きでは生成・接続・一部の初期化が動きません。<code>Start UI.command</code> を起動して <code>http://127.0.0.1:5190</code> で開いてください。</span>';
+          document.body.prepend(banner);
+        });
+      })();
+    </script>
+    <main class="app-shell lab-shell">
+      <aside class="studio-panel controls-panel lab-rail" aria-label="Synthesis controls">
+        <section class="control-group generation-params">
+          <div class="section-heading">
+            <span>Parameters</span>
+            <strong>生成</strong>
+          </div>
+          <div class="sliders">
+            <label>
+              <span>Speed <b id="speedValue">1.00</b></span>
+              <input id="speed" class="control-range" type="range" min="0.5" max="1.8" value="1" step="0.05">
+            </label>
+            <label>
+              <span>Pitch <b id="pitchValue">0</b></span>
+              <input id="pitch" class="control-range" type="range" min="-6" max="6" value="0" step="0.1">
+            </label>
+            <label>
+              <span>Steps <b id="numStepsValue">40</b></span>
+              <input id="numSteps" class="control-range" type="range" min="4" max="80" value="40" step="1">
+            </label>
+          </div>
+
+          <div class="grid-four">
+            <label>
+              <span>Seed</span>
+              <input id="seed" class="control-input" type="number" placeholder="random">
+            </label>
+            <label>
+              <span>CFG Text</span>
+              <input id="cfgText" class="control-input" type="number" value="1.0" step="0.1">
+            </label>
+            <label>
+              <span>CFG Caption</span>
+              <input id="cfgCaption" class="control-input" type="number" value="1.0" step="0.1">
+            </label>
+            <label>
+              <span>CFG Speaker</span>
+              <input id="cfgSpeaker" class="control-input" type="number" value="1.0" step="0.1">
+            </label>
+            <label>
+              <span>Sway</span>
+              <input id="sway" class="control-input" type="number" value="-1.0" step="0.1">
+            </label>
+          </div>
+
+          <label>
+            <span>Schedule</span>
+            <select id="schedule" class="control-input">
+              <option value="linear">linear</option>
+              <option value="sway">sway</option>
+              <option value="cosine">cosine</option>
+            </select>
+          </label>
+
+          <label>
+            <span>CFG Mode</span>
+            <select id="cfgMode" class="control-input">
+              <option value="independent">independent</option>
+              <option value="joint">joint</option>
+              <option value="alternating">alternating</option>
+            </select>
+          </label>
+
+          <div class="parameter-actions">
+            <button id="regenerateAdjusted" class="button secondary-action" type="button">調整して再生成</button>
+          </div>
+        </section>
+
+        <section class="control-group">
+          <div class="section-heading">
+            <span>Engine</span>
+            <strong>接続</strong>
+          </div>
+          <label>
+            <span>OpenAI互換URL</span>
+            <input id="endpoint" class="control-input" value="http://localhost:8088/v1" autocomplete="off">
+          </label>
+          <div class="connection-strip">
+            <span id="bridgeState">接続未確認</span>
+            <button id="refreshBridge" class="button secondary-action compact-action" type="button">接続確認</button>
+          </div>
+          <p id="modelsStatus" class="hint">v3 lab engine / 600M v3 VoiceDesign.</p>
+          <label class="lab-hidden">
+            <span>API Key 任意</span>
+            <input id="apiKey" class="control-input" type="password" placeholder="not-used" autocomplete="off">
+          </label>
+        </section>
+
+        <div class="brand-block">
+          <span>Nanami Voice Laboratory</span>
+          <h1>NANAMI VOICE LABO</h1>
+        </div>
+      </aside>
+
+      <section class="studio-panel cards-panel workbench-panel" aria-label="Voice workbench">
+        <header class="seed-title-strip" aria-label="Lab title">
+          <span>Nanami Voice Laboratory</span>
+          <h1>NANAMI VOICE LABO</h1>
+        </header>
+
+        <nav class="lab-tabs" aria-label="Lab workflow">
+          <button class="lab-tab is-active" type="button" data-lab-tab-target="seed">テキストから生成</button>
+          <button class="lab-tab" type="button" data-lab-tab-target="expression">表現音セット</button>
+          <button class="lab-tab" type="button" data-lab-tab-target="review">人間チェック</button>
+          <button class="lab-tab" type="button" data-lab-tab-target="finish">調整から成果物</button>
+          <button class="lab-tab" type="button" data-lab-tab-target="test">成果物テスト</button>
+        </nav>
+
+        <section class="lab-panel seed-panel" data-lab-panel="seed">
+          <section class="scriptwriter-panel lab-hidden" aria-label="Scenario to line generator">
+            <div class="scriptwriter-head">
+              <div>
+                <span>Script cue</span>
+                <strong>場面からセリフを作る</strong>
+              </div>
+              <div class="length-tabs" role="group" aria-label="文字数">
+                <button class="script-length is-active" type="button" data-script-length="short">短</button>
+                <button class="script-length" type="button" data-script-length="medium">標準</button>
+                <button class="script-length" type="button" data-script-length="long">長</button>
+              </div>
+            </div>
+            <label>
+              <span>Scene</span>
+              <textarea id="scriptCue" class="control-input script-cue-area" placeholder="例: ジェイソンに追われて、行き止まりで目の前に来た時の声。"></textarea>
+            </label>
+            <div class="scriptwriter-actions">
+              <button id="draftLine" class="button secondary-action" type="button">セリフ生成</button>
+              <div id="scriptDraftStatus" class="script-draft-status" aria-live="polite" hidden>
+                <span class="script-draft-pulse"></span>
+                <span id="scriptDraftStatusText">WRITING</span>
+                <span class="script-draft-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+              </div>
+            </div>
+          </section>
+
+          <section class="seed-flow-panel">
+            <div class="seed-flow-head">
+              <div>
+                <span>Seed WAV Maker</span>
+                <strong>テキストから声を作る</strong>
+            </div>
+            <span class="status-pill inline-status" id="serverStatus">未接続</span>
+          </div>
+
+            <div class="seed-source-row">
+              <section class="seed-settings-panel seed-voice-panel">
+                <div class="section-heading">
+                  <span>Voice</span>
+                  <strong>参照音声</strong>
+                </div>
+                <div class="seed-voice-grid">
+                  <div class="reference-control-row">
+                    <label class="reference-select-field">
+                      <span>使う声</span>
+                      <select id="derivedReference" class="control-input">
+                        <option value="none" selected>参照なし</option>
+                      </select>
+                    </label>
+                    <label class="file-picker reference-load-button">
+                      <input id="importReference" type="file" accept="audio/*">
+                      <span>音声読込</span>
+                    </label>
+                  </div>
+                  <input id="voice" class="lab-hidden" value="none">
+                  <button id="recordReference" class="button secondary-action lab-hidden" type="button">録音</button>
+                  <button id="resetBaseReference" class="button secondary-action reference-reset-button" type="button">参照なしへ戻す</button>
+                  <button id="downloadSelectedReference" class="button secondary-action reference-export-button" type="button">保存済み参照wavを書き出し</button>
+                  <button id="deleteSelectedReferenceTop" class="button secondary-action reference-delete-button danger-action" type="button">保存済み参照wavを削除</button>
+                </div>
+                <p id="referenceStatus" class="hint">参照音声なし</p>
+              </section>
+
+              <section class="seed-block voice-caption-block" aria-labelledby="voiceCaptionLabel">
+                <div class="voice-caption-head">
+                  <span id="voiceCaptionLabel">声の説明</span>
+                  <div id="voicePresetTabs" class="voice-preset-tabs" role="group" aria-label="音声プロンプトプリセット"></div>
+                </div>
+                <div id="voicePresetGrid" class="voice-preset-grid" aria-label="音声プロンプト"></div>
+                <textarea id="voiceCaption" class="control-input caption-area">20代前半の自然な日本語話者で、中音域のクリアな声。近い距離感で、本文の感情に合わせて自然に読み上げる。息づかいは控えめ。</textarea>
+              </section>
+            </div>
+
+            <label class="seed-block">
+              <span>Text</span>
+              <textarea id="text" class="control-input text-area">こんにちは。これはNANAMI VOICE LABOの音声テストです。声の雰囲気、距離感、感情の乗り方を確認しながら、使いやすい参照音声を作ります。</textarea>
+            </label>
+
+            <section class="seed-settings-panel">
+              <div class="section-heading">
+                <span>Generation</span>
+                <strong>生成設定</strong>
+              </div>
+              <div class="seed-settings-grid">
+                <label>
+                  <span>Model</span>
+                  <select id="model" class="control-input">
+                    <option value="irodori-v3-lab-engine">Nanami Labo 600M v3 VoiceDesign</option>
+                    <option value="irodori-voice-design-600m-v3">600M v3 VoiceDesign</option>
+                    <option value="irodori-lite-auto">Lite 自動</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Format</span>
+                  <select id="format" class="control-input">
+                    <option>wav</option>
+                    <option>mp3</option>
+                    <option>flac</option>
+                    <option>opus</option>
+                    <option>aac</option>
+                  </select>
+                </label>
+                <div class="seed-quality-control">
+                  <span>Quality</span>
+                  <div class="seed-quality-tabs" role="group" aria-label="生成品質">
+                    <button class="seed-quality" type="button" data-seed-quality="draft">試作</button>
+                    <button class="seed-quality is-active" type="button" data-seed-quality="standard">標準</button>
+                    <button class="seed-quality" type="button" data-seed-quality="high">高品質</button>
+                  </div>
+                </div>
+                <label class="seed-field">
+                  <span>Seed</span>
+                  <div class="seed-input-row">
+                    <input id="seedQuick" class="control-input" type="number" placeholder="random">
+                    <button id="clearSeed" class="button secondary-action seed-random-button" type="button">ランダム</button>
+                  </div>
+                </label>
+              </div>
+            </section>
+
+            <div class="seed-generate-row">
+              <button id="resetTextGenerationTop" class="button secondary-action" type="button">標準に戻す</button>
+              <button id="generateTop" class="button primary-action composer-generate" type="button">音声を生成</button>
+            </div>
+
+            <div class="seed-result-grid">
+              <div id="playerMountSeed" class="player-mount">
+                <div id="playerRack" class="player-rack">
+                  <div class="preview-transport">
+                    <button id="playPreview" class="button preview-play-button" type="button" disabled>再生</button>
+                    <audio id="audioPlayer" controls preload="metadata"></audio>
+                  </div>
+                  <button id="clearTransientAudio" class="button secondary-action clear-transient-action" type="button">一時音声クリア</button>
+                </div>
+              </div>
+
+              <section class="seed-save-panel">
+                <label>
+                  <span>Name</span>
+                  <input id="seedTakeName" class="control-input" value="seed-voice-01" autocomplete="off">
+                </label>
+                <input id="derivedVoiceName" class="lab-hidden" value="seed-voice-01-reference" autocomplete="off">
+                <button id="saveSeedTake" class="button primary-action" type="button">表現音セットへ</button>
+              </section>
+            </div>
+
+            <section class="eq-console seed-eq-console" aria-label="Audio equalizer">
+              <div class="section-heading">
+                <span>Sculpt EQ</span>
+                <strong>表現音へ入れる音の加工</strong>
+              </div>
+              <div class="hpf-control">
+                <span>High-pass</span>
+                <div class="hpf-tabs" role="group" aria-label="High-pass filter">
+                  <button class="hpf-preset is-active" type="button" data-hpf-hz="0">Off</button>
+                  <button class="hpf-preset" type="button" data-hpf-hz="90">90Hz</button>
+                  <button class="hpf-preset" type="button" data-hpf-hz="120">120Hz</button>
+                  <button class="hpf-preset" type="button" data-hpf-hz="150">150Hz</button>
+                </div>
+                <input id="hpfHz" class="lab-hidden" type="number" value="0">
+              </div>
+              <div class="audio-cleanup-grid">
+                <div class="cleanup-control">
+                  <span>Peak Guard</span>
+                  <div class="cleanup-tabs" role="group" aria-label="Peak guard">
+                    <button class="cleanup-preset" type="button" data-peak-target-db="off">Off</button>
+                    <button class="cleanup-preset is-active" type="button" data-peak-target-db="-3">-3dB</button>
+                    <button class="cleanup-preset" type="button" data-peak-target-db="-6">-6dB</button>
+                  </div>
+                  <input id="peakTargetDb" class="lab-hidden" value="-3">
+                </div>
+                <div class="cleanup-control">
+                  <span>DeepFilterNet</span>
+                  <div class="cleanup-tabs" role="group" aria-label="DeepFilterNet">
+                    <button class="cleanup-preset is-active" type="button" data-deep-filter-mode="off">Off</button>
+                    <button class="cleanup-preset" type="button" data-deep-filter-mode="light">Light</button>
+                    <button class="cleanup-preset" type="button" data-deep-filter-mode="strong">Strong</button>
+                  </div>
+                  <input id="deepFilterMode" class="lab-hidden" value="off">
+                </div>
+              </div>
+              <div class="eq-grid">
+                <label>
+                  <span>Gain <b id="gainValue">0.0dB</b></span>
+                  <input id="gainDb" class="control-range eq-slider" type="range" min="-18" max="12" value="0" step="0.1">
+                </label>
+                <label>
+                  <span>Low <b id="lowValue">0.0dB</b></span>
+                  <input id="lowDb" class="control-range eq-slider" type="range" min="-6" max="6" value="0" step="0.1">
+                </label>
+                <label>
+                  <span>Mid <b id="midValue">0.0dB</b></span>
+                  <input id="midDb" class="control-range eq-slider" type="range" min="-6" max="6" value="0" step="0.1">
+                </label>
+                <label>
+                  <span>High <b id="highValue">0.0dB</b></span>
+                  <input id="highDb" class="control-range eq-slider" type="range" min="-6" max="6" value="0" step="0.1">
+                </label>
+                <label>
+                  <span>Presence <b id="presenceValue">0.0dB</b></span>
+                  <input id="presenceDb" class="control-range eq-slider" type="range" min="-5" max="5" value="0" step="0.1">
+                </label>
+                <label>
+                  <span>Air <b id="airValue">0.0dB</b></span>
+                  <input id="airDb" class="control-range eq-slider" type="range" min="-5" max="5" value="0" step="0.1">
+                </label>
+              </div>
+              <div class="eq-footer">
+                <div class="eq-actions">
+                  <button id="resetSculpt" class="button secondary-action" type="button">速度/Pitch/EQリセット</button>
+                  <button id="applySculpt" class="button secondary-action" type="button">加工を表現音へ固定</button>
+                  <button id="applyDeepFilter" class="button secondary-action" type="button">DeepFilterを試す</button>
+                  <button id="saveDerivedReference" class="button primary-action" type="button">参照音声として保存</button>
+                </div>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <section class="lab-panel expression-panel" data-lab-panel="expression" hidden>
+          <section class="expression-command-panel">
+            <div class="expression-command-copy">
+              <div>
+                <span>Expression</span>
+                <strong>表現音候補</strong>
+              </div>
+              <p>まず生成候補を作ります。笑い、息、むせ、飲み込み、口腔音、艶っぽい吐息、絶叫、泣き声を多めに作ります。必要なら自作表現を先に作ってから、12本・50本・145本を後ろに追加できます。一般読み上げは最終成果物で別枠追加できます。</p>
+              <div id="expressionVoiceGenderHint" class="expression-voice-gender-hint">現在の表現音: 女性セット</div>
+            </div>
+
+            <div class="expression-controls-grid">
+              <label>
+                <span>作り方</span>
+                <select id="expressionSourceMode" class="control-input">
+                  <option value="direct" selected>VoiceDesign直接</option>
+                  <option value="reference">参照音声を使う</option>
+                </select>
+              </label>
+              <label>
+                <span>候補数</span>
+                <input id="expressionLimit" class="control-input" type="number" min="8" max="160" value="145" step="1">
+              </label>
+              <div class="expression-preset-tabs" role="group" aria-label="候補数プリセット">
+                <button class="expression-preset" type="button" data-expression-limit="12">12本テスト</button>
+                <button class="expression-preset" type="button" data-expression-limit="50">50本確認</button>
+                <button class="expression-preset is-active" type="button" data-expression-limit="145">145本本命</button>
+              </div>
+              <button id="buildExpressionQueue" class="button secondary-action" type="button">候補リスト作成</button>
+              <button id="generateNextExpression" class="button primary-action" type="button">次を1本生成</button>
+              <button id="generateAllExpressions" class="button secondary-action" type="button">未生成を連続生成</button>
+              <button id="stopExpressionBatch" class="button secondary-action" type="button" disabled>停止</button>
+              <button id="clearExpressionSetTop" class="button secondary-action danger-action" type="button" data-clear-expression-set>表現音セットをクリア</button>
+            </div>
+
+            <div class="custom-expression-panel">
+              <label>
+                <span>自作表現</span>
+                <textarea id="customExpressionText" class="control-textarea compact-textarea" rows="2" placeholder="例: ウオォォォォォォォ！ ふざけるなぁぁぁ！！！"></textarea>
+              </label>
+              <button id="generateCustomExpression" class="button primary-action" type="button">この表現を生成</button>
+            </div>
+
+            <div id="expressionGenerationStatus" class="expression-generation-status" aria-live="polite">VoiceDesign直接では、参照音声を使わず、声の説明と固定Seedから直接表現音を生成します。</div>
+          </section>
+
+          <section class="expression-layout">
+            <section class="expression-category-panel">
+              <div class="section-heading">
+                <span>Categories</span>
+                <strong>配分</strong>
+              </div>
+              <div id="expressionCategoryGrid" class="expression-category-grid"></div>
+            </section>
+
+            <section class="expression-queue-panel">
+              <div class="section-heading">
+                <span>Queue</span>
+                <strong>候補</strong>
+              </div>
+              <div id="expressionQueueList" class="expression-queue-list" aria-live="polite"></div>
+            </section>
+          </section>
+        </section>
+
+        <section class="lab-panel review-panel" data-lab-panel="review" hidden>
+          <section class="review-workbench">
+            <div class="section-heading">
+              <span>Human Review</span>
+              <strong>耳で採用する</strong>
+            </div>
+
+            <article id="reviewActiveCard" class="review-active-card">
+              <p class="hint">表現音セットで候補を作って、生成したクリップをここで採用します。</p>
+            </article>
+
+            <div id="playerMountReview" class="player-mount"></div>
+
+            <div class="review-actions">
+              <button id="acceptExpression" class="button primary-action" type="button">採用して次へ</button>
+              <button id="soundOnlyExpression" class="button secondary-action" type="button">音だけ採用して次へ</button>
+              <button id="holdExpression" class="button secondary-action" type="button">保留して次へ</button>
+              <button id="recordingNeededExpression" class="button secondary-action" type="button">録音で作る</button>
+              <button id="rejectExpression" class="button secondary-action danger-action" type="button">ボツして次へ</button>
+            </div>
+            <div class="review-secondary-actions">
+              <button id="regenerateExpression" class="button secondary-action" type="button">この候補を再生成</button>
+              <button id="nextReviewExpression" class="button secondary-action" type="button">次の未チェックへ</button>
+              <button id="downloadReviewAnalysis" class="button secondary-action" type="button">解析zipを書き出し</button>
+            </div>
+          </section>
+
+          <section class="review-list-panel">
+            <div class="section-heading">
+              <span>Review Queue</span>
+              <strong>チェック一覧</strong>
+            </div>
+            <div id="reviewQueueList" class="review-queue-list"></div>
+          </section>
+        </section>
+
+        <section class="lab-panel" data-lab-panel="finish" hidden>
+          <div id="playerMountFinish" class="player-mount"></div>
+
+        <section class="material-summary-panel">
+          <div class="section-heading">
+            <span>Training Material</span>
+            <strong>採用素材</strong>
+          </div>
+          <div id="materialStatsGrid" class="material-stats-grid"></div>
+          <div class="material-actions">
+            <button id="downloadAcceptedWavs" class="button secondary-action" type="button">採用セットzipを書き出し</button>
+            <button id="exportTrainingJsonl" class="button secondary-action" type="button">JSONLだけ書き出し</button>
+            <button id="clearExpressionSetFinish" class="button secondary-action danger-action" type="button" data-clear-expression-set>表現音セットをクリア</button>
+          </div>
+        </section>
+
+        <section class="take-library lab-hidden">
+          <div class="section-heading">
+            <span>Take Shelf</span>
+            <strong>保存テイク</strong>
+          </div>
+          <div id="cardsGrid" class="cards-grid" aria-live="polite"></div>
+        </section>
+
+        <section class="final-artifact-panel">
+          <div class="section-heading">
+            <span>Final Artifact</span>
+            <strong>Nanami成果物</strong>
+          </div>
+          <p class="hint">採用したwavを使ってSpeaker Inversionを実行し、checkpoint_final.speaker.safetensorsを作成します。完了後は成果物テストに自動でカード化します。</p>
+          <div class="speaker-build-controls">
+            <label>
+              <span>素材セット</span>
+              <select id="speakerMaterialProfile" class="control-input">
+                <option value="all" selected>全部入り</option>
+                <option value="clarity">クリア優先</option>
+              </select>
+            </label>
+            <label>
+              <span>学習モード</span>
+              <select id="speakerBuildMode" class="control-input">
+                <option value="smoke">スモーク</option>
+                <option value="standard" selected>標準</option>
+                <option value="production">本番</option>
+              </select>
+            </label>
+            <label>
+              <span>Device</span>
+              <select id="speakerBuildDevice" class="control-input">
+                <option value="cpu" selected>cpu</option>
+                <option value="mps">mps</option>
+              </select>
+            </label>
+          </div>
+          <p id="speakerMaterialProfileHint" class="hint">全部入り: 採用・音だけ採用をすべて使います。</p>
+          <section class="general-speech-panel">
+            <div class="section-heading">
+              <span>General Speech</span>
+              <strong>一般音声100</strong>
+            </div>
+            <p class="hint">本の朗読、天気予報、案内、説明文などの普通の読み上げを100本追加します。声の芯が安定してから、必要な時だけ含めます。</p>
+            <label class="option-row">
+              <input id="includeGeneralSpeechSet" type="checkbox">
+              <span>最終成果物に一般音声100を含める</span>
+            </label>
+            <div class="general-speech-actions">
+              <button id="generateGeneralSpeechSet" class="button secondary-action" type="button">一般音声100を生成</button>
+              <button id="clearGeneralSpeechSet" class="button secondary-action danger-action" type="button">一般音声100をクリア</button>
+            </div>
+            <progress id="generalSpeechProgress" class="general-speech-progress" max="100" value="0"></progress>
+            <div id="generalSpeechStatus" class="speaker-build-status" aria-live="polite">一般音声: 0/100 未生成。最終成果物作成時に自動生成できます。</div>
+          </section>
+          <div class="final-actions">
+            <button id="exportReferenceWav" class="button secondary-action" type="button">現在音声wav</button>
+            <button id="exportManifest" class="button secondary-action" type="button">現在manifest</button>
+            <button id="buildSpeakerEmbedding" class="button primary-action" type="button">最終成果物を作成</button>
+            <button id="cancelSpeakerBuild" class="button secondary-action danger-action" type="button" disabled>中止</button>
+          </div>
+          <div id="speakerBuildStatus" class="speaker-build-status" aria-live="polite">採用素材を確認して、最終成果物を作成できます。</div>
+          <pre id="speakerBuildLog" class="speaker-build-log" aria-live="polite"></pre>
+        </section>
+        </section>
+
+        <section class="lab-panel final-test-panel" data-lab-panel="test" hidden>
+          <section class="final-artifact-list-panel">
+            <div class="section-heading">
+              <span>完成音声</span>
+              <strong>完成カード</strong>
+            </div>
+            <div id="finalArtifactGrid" class="final-artifact-grid" aria-live="polite">
+              <p class="hint">成果物を読み込み中です。</p>
+            </div>
+          </section>
+
+          <section class="final-artifact-test-panel">
+            <div class="section-heading">
+              <span>テスト環境</span>
+              <strong>完成物で試す</strong>
+            </div>
+            <div class="final-test-playground">
+              <label class="seed-block">
+                <span>テスト本文</span>
+                <textarea id="finalArtifactText" class="control-input text-area">こんにちは。これは完成済みの音声成果物でのテストです。声の安定感、距離感、感情の乗り方を確認します。</textarea>
+              </label>
+              <button id="generateFinalArtifactTest" class="button primary-action" type="button">選択カードで生成</button>
+            </div>
+            <div id="playerMountTest" class="player-mount"></div>
+            <section id="finalArtifactEditPanel" class="final-artifact-edit-panel" aria-live="polite">
+              <div class="section-heading">
+                <span>カードメモ編集</span>
+                <strong id="finalArtifactEditTitle">カードを選択</strong>
+              </div>
+              <label class="seed-block">
+                <span>説明メモ</span>
+                <textarea id="finalArtifactDescription" class="control-input final-description-area" placeholder="左のカードの編集ボタンから、声質・用途・注意点を短くメモできます。" disabled></textarea>
+              </label>
+              <div class="final-test-actions">
+                <button id="saveFinalArtifactDescription" class="button secondary-action" type="button">メモを反映</button>
+                <button id="cancelFinalArtifactDescription" class="button secondary-action" type="button">閉じる</button>
+                <button id="downloadFinalArtifact" class="button secondary-action" type="button">safetensorsを書き出し</button>
+                <button id="hideFinalArtifactCard" class="button secondary-action" type="button">カードだけ削除</button>
+                <button id="deleteFinalArtifactFiles" class="button secondary-action danger-action" type="button">生成物も削除</button>
+              </div>
+            </section>
+          </section>
+        </section>
+      </section>
+
+      <aside class="studio-panel inspector-panel monitor-panel" aria-label="Reusable export and engine inspector">
+        <div class="inspector-header monitor-header">
+          <div>
+            <span class="eyebrow">Audio Monitor</span>
+            <h2>Wave / Histogram</h2>
+          </div>
+        </div>
+
+        <div class="analysis-rack">
+          <div class="analysis-card">
+            <div class="section-heading">
+              <span>Wave</span>
+              <strong>音量波形</strong>
+            </div>
+            <canvas id="waveformCanvas" width="900" height="180"></canvas>
+          </div>
+          <div class="analysis-card">
+            <div class="section-heading">
+              <span>Histogram</span>
+              <strong>音量分布</strong>
+            </div>
+            <canvas id="histogramCanvas" width="900" height="180"></canvas>
+          </div>
+        </div>
+
+        <section class="inspector-card expression-status-card">
+          <div class="section-heading">
+            <span>Expression</span>
+            <strong>採用状況</strong>
+          </div>
+          <div id="expressionStatsMini" class="expression-stats-mini"></div>
+        </section>
+
+        <details class="inspector-drawer">
+          <summary class="drawer-summary">
+            <span>
+              <small>Inspector</small>
+              <strong>Export / Engine</strong>
+            </span>
+          </summary>
+
+          <div class="drawer-content">
+            <button id="exportJson" class="button export-action" type="button">JSON出力</button>
+
+            <section class="inspector-card">
+              <div class="section-heading">
+                <span>Payload</span>
+                <strong>speech</strong>
+              </div>
+              <pre class="code-card"><code>{
+  "endpoint": "http://localhost:8088/v1",
+  "model": "irodori-lite-auto",
+  "voice": "none",
+  "format": "wav",
+  "speed": 1,
+  "irodori": {
+    "seed": 1234,
+    "numSteps": 24,
+    "cfgMode": "independent",
+    "cfgText": 1.0,
+    "cfgCaption": 1.0,
+    "cfgSpeaker": 1.0
+  }
+}</code></pre>
+            </section>
+
+            <section class="inspector-card">
+              <div class="section-heading">
+                <span>Reusable assets</span>
+                <strong>manifest</strong>
+              </div>
+              <div class="manifest-list">
+                <div>
+                  <span>Audio</span>
+                  <strong>card audio blob</strong>
+                </div>
+                <div>
+                  <span>Metadata</span>
+                  <strong>voice card json</strong>
+                </div>
+                <div>
+                  <span>Reference</span>
+                  <strong>optional upload</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="inspector-card">
+              <div class="meter-row">
+                <span>Endpoint readiness</span>
+                <meter min="0" max="100" value="32">32%</meter>
+              </div>
+              <div class="meter-row">
+                <span>Prompt budget</span>
+                <meter min="0" max="100" value="24">24%</meter>
+              </div>
+              <div class="meter-row">
+                <span>Reference lock</span>
+                <meter min="0" max="100" value="0">0%</meter>
+              </div>
+            </section>
+
+            <section class="inspector-card log-card">
+              <div class="section-heading">
+                <span>Runtime</span>
+                <strong>Engine Log</strong>
+              </div>
+              <div id="logPanel" class="log-panel" role="log" aria-live="polite">準備完了。</div>
+            </section>
+          </div>
+        </details>
+
+        <section class="inspector-card">
+          <div class="section-heading">
+            <span>Derived</span>
+            <strong>参照音声</strong>
+          </div>
+          <div id="derivedReferenceList" class="derived-reference-list">
+            <p class="hint">保存済み参照音声はまだありません。</p>
+          </div>
+          <button id="deleteDerivedReference" class="button secondary-action" type="button">選択中を削除</button>
+        </section>
+      </aside>
+    </main>
+    <script type="module" src="./app.js?v=20260629-final-test-ui1"></script>
+  </body>
+</html>
