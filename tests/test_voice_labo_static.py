@@ -507,6 +507,20 @@ def test_speaker_inversion_accepts_hugging_face_checkpoint_ids_without_path_fail
     assert 'Path(str(manifest.get("base_checkpoint") or SPEAKER_INVERSION_BASE_CHECKPOINT)).expanduser().is_file()' not in bridge
 
 
+def test_speaker_inversion_repairs_offline_backbone_config_cache_before_training():
+    bridge = read("irodori_openai_bridge.py")
+
+    assert 'SPEAKER_BACKBONE_CONFIG_REPO = os.environ.get("IRODORI_SPEAKER_BACKBONE_CONFIG_REPO", "llm-jp/llm-jp-3-150m").strip()' in bridge
+    assert 'SPEAKER_BACKBONE_CONFIG_HIDDEN_SIZE = int(os.environ.get("IRODORI_SPEAKER_BACKBONE_CONFIG_HIDDEN_SIZE", "512"))' in bridge
+    assert '"model_type": "llama"' in bridge
+    assert '"hidden_size": SPEAKER_BACKBONE_CONFIG_HIDDEN_SIZE' in bridge
+    assert "def ensure_speaker_backbone_config_cache" in bridge
+    assert 'AutoConfig.from_pretrained(repo_id, local_files_only=True, trust_remote_code=False)' in bridge
+    assert '"backboneConfigCache": backbone_config_state' in bridge
+    assert "backbone config cache failed" in bridge
+    assert 'append_speaker_job_log(job, f"Backbone config cache: {backbone_state.get(\'message\') or backbone_state.get(\'error\') or \'unknown\'}")' in bridge
+
+
 if __name__ == "__main__":
     test_generation_payload_uses_45_second_max_duration()
     test_expression_sets_are_gendered_and_include_power_shout()
@@ -535,4 +549,5 @@ if __name__ == "__main__":
     test_speaker_prepare_timeout_scales_for_large_material_sets()
     test_speaker_inversion_uses_separate_python_and_full_prepare_dependency_probe()
     test_speaker_inversion_accepts_hugging_face_checkpoint_ids_without_path_failure()
+    test_speaker_inversion_repairs_offline_backbone_config_cache_before_training()
     print("voice labo static tests passed")

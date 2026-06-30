@@ -92,9 +92,12 @@ SPEAKER_UPLOAD_MAX_CLIPS = int(os.environ.get("IRODORI_SPEAKER_UPLOAD_MAX_CLIPS"
 SPEAKER_PREPARE_TIMEOUT_SECONDS_DEFAULT = 3600
 SPEAKER_PREPARE_TIMEOUT_SECONDS_PER_CLIP = int(os.environ.get("IRODORI_SPEAKER_PREPARE_TIMEOUT_SECONDS_PER_CLIP", "20"))
 SPEAKER_PREPARE_TIMEOUT_SECONDS_MAX = int(os.environ.get("IRODORI_SPEAKER_PREPARE_TIMEOUT_SECONDS_MAX", "7200"))
+SPEAKER_BACKBONE_CONFIG_REPO = os.environ.get("IRODORI_SPEAKER_BACKBONE_CONFIG_REPO", "llm-jp/llm-jp-3-150m").strip()
+SPEAKER_BACKBONE_CONFIG_HIDDEN_SIZE = int(os.environ.get("IRODORI_SPEAKER_BACKBONE_CONFIG_HIDDEN_SIZE", "512"))
 SPEAKER_JOB_PROCESSES: dict[str, subprocess.Popen[Any]] = {}
 SPEAKER_JOB_LOCK = threading.Lock()
 SPEAKER_PYTHON_DEPENDENCY_CACHE: dict[str, Any] | None = None
+SPEAKER_BACKBONE_CONFIG_CACHE: dict[str, Any] | None = None
 SCRIPTWRITER_ENDPOINT = os.environ.get("IRODORI_SCRIPTWRITER_ENDPOINT", "http://127.0.0.1:8080/v1").strip().rstrip("/")
 SCRIPTWRITER_MODEL = os.environ.get(
   "IRODORI_SCRIPTWRITER_MODEL",
@@ -707,6 +710,131 @@ def checkpoint_ref_exists(value: str) -> bool:
   return Path(ref).expanduser().is_file()
 
 
+def speaker_backbone_config_payload() -> dict[str, Any]:
+  return {
+    "architectures": ["LlamaForCausalLM"],
+    "model_type": "llama",
+    "hidden_size": SPEAKER_BACKBONE_CONFIG_HIDDEN_SIZE,
+    "intermediate_size": 1376,
+    "num_hidden_layers": 12,
+    "num_attention_heads": 8,
+    "num_key_value_heads": 8,
+    "vocab_size": 99574,
+    "bos_token_id": 1,
+    "eos_token_id": 2,
+    "pad_token_id": 2,
+  }
+
+
+def hf_cache_repo_dir(repo_id: str) -> Path:
+  return SPEAKER_HF_HOME / "hub" / f"models--{repo_id.replace('/', '--')}"
+
+
+def speaker_backbone_snapshot_dirs(repo_id: str) -> list[Path]:
+  repo_dir = hf_cache_repo_dir(repo_id)
+  snapshots_dir = repo_dir / "snapshots"
+  candidates: list[Path] = []
+  ref_path = repo_dir / "refs" / "main"
+  try:
+    revision = ref_path.read_text(encoding="utf-8").strip()
+  except OSError:
+    revision = ""
+  if revision:
+    candidates.append(snapshots_dir / revision)
+  if snapshots_dir.is_dir():
+    candidates.extend(path for path in sorted(snapshots_dir.iterdir()) if path.is_dir())
+  if not candidates:
+    # Keep the cache shape compatible with huggingface_hub offline resolution.
+    revision = "nanami-local-config"
+    (repo_dir / "refs").mkdir(parents=True, exist_ok=True)
+    if not ref_path.exists():
+      ref_path.write_text(revision + "\n", encoding="utf-8")
+    candidates.append(snapshots_dir / revision)
+  unique: list[Path] = []
+  seen: set[Path] = set()
+  for path in candidates:
+    resolved = path.resolve() if path.exists() else path
+    if resolved in seen:
+      continue
+    seen.add(resolved)
+    unique.append(path)
+  return unique
+
+
+def ensure_speaker_backbone_config_cache() -> dict[str, Any]:
+  global SPEAKER_BACKBONE_CONFIG_CACHE
+  if SPEAKER_BACKBONE_CONFIG_CACHE is not None:
+    return SPEAKER_BACKBONE_CONFIG_CACHE
+  repo_id = SPEAKER_BACKBONE_CONFIG_REPO
+  if not repo_id:
+    SPEAKER_BACKBONE_CONFIG_CACHE = {
+      "ok": True,
+      "repo": "",
+      "message": "speaker backbone config cache disabled",
+    }
+    return SPEAKER_BACKBONE_CONFIG_CACHE
+  try:
+    written: list[str] = []
+    payload = speaker_backbone_config_payload()
+    for snapshot_dir in speaker_backbone_snapshot_dirs(repo_id):
+      snapshot_dir.mkdir(parents=True, exist_ok=True)
+      config_path = snapshot_dir / "config.json"
+      if not config_path.is_file():
+        write_json_atomic(config_path, payload)
+        written.append(str(config_path))
+    python_ready, python_command = irodori_python_ready()
+    if not python_ready:
+      raise RuntimeError(f"Irodori python command not found: {python_command}")
+    script = "\n".join(
+      [
+        "from transformers import AutoConfig",
+        f"repo_id = {json.dumps(repo_id)}",
+        "cfg = AutoConfig.from_pretrained(repo_id, local_files_only=True, trust_remote_code=False)",
+        "hidden = int(getattr(cfg, 'hidden_size', -1))",
+        f"expected = {SPEAKER_BACKBONE_CONFIG_HIDDEN_SIZE}",
+        "model_type = str(getattr(cfg, 'model_type', ''))",
+        "assert hidden == expected, f'hidden_size={hidden} expected={expected}'",
+        "print(f'{repo_id} config.json ready ({model_type} {hidden})')",
+      ]
+    )
+    result = subprocess.run(
+      [
+        *irodori_python_command(),
+        "-c",
+        script,
+      ],
+      cwd=IRODORI_REPO_DIR if IRODORI_REPO_DIR.is_dir() else BASE_DIR,
+      env=speaker_job_env(),
+      text=True,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT,
+      timeout=30,
+      check=False,
+    )
+    output = (result.stdout or "").strip()
+    if result.returncode != 0:
+      raise RuntimeError(output or f"AutoConfig check failed with exit code {result.returncode}")
+    SPEAKER_BACKBONE_CONFIG_CACHE = {
+      "ok": True,
+      "repo": repo_id,
+      "hiddenSize": SPEAKER_BACKBONE_CONFIG_HIDDEN_SIZE,
+      "modelType": "llama",
+      "hfHome": str(SPEAKER_HF_HOME),
+      "written": written,
+      "message": output or f"{repo_id} config.json ready",
+    }
+  except Exception as error:
+    SPEAKER_BACKBONE_CONFIG_CACHE = {
+      "ok": False,
+      "repo": repo_id,
+      "hiddenSize": SPEAKER_BACKBONE_CONFIG_HIDDEN_SIZE,
+      "modelType": "llama",
+      "hfHome": str(SPEAKER_HF_HOME),
+      "error": str(error),
+    }
+  return SPEAKER_BACKBONE_CONFIG_CACHE
+
+
 def merge_pythonpath(base_env: dict[str, str], extra_pythonpath: str) -> dict[str, str]:
   paths = [path for path in extra_pythonpath.split(os.pathsep) if path.strip()]
   current = base_env.get("PYTHONPATH", "")
@@ -788,6 +916,7 @@ def speaker_inversion_ready_state() -> dict[str, Any]:
   active_jobs = [job for job in list_speaker_jobs() if job.get("status") in {"queued", "preparing", "training", "registering", "cancelling"}]
   python_ready, python_command = irodori_python_ready()
   dependency_state = speaker_python_dependency_state()
+  backbone_config_state = ensure_speaker_backbone_config_cache()
   problems = []
   if not IRODORI_REPO_DIR.is_dir():
     problems.append(f"Irodori repo not found: {IRODORI_REPO_DIR}")
@@ -802,6 +931,8 @@ def speaker_inversion_ready_state() -> dict[str, Any]:
     problems.append(f"Irodori python command not found: {python_command}")
   if not dependency_state.get("ok"):
     problems.append(f"speaker inversion python cannot prepare dependencies: {dependency_state.get('error') or 'unknown error'}")
+  if not backbone_config_state.get("ok"):
+    problems.append(f"backbone config cache failed: {backbone_config_state.get('error') or 'unknown error'}")
   return {
     "ok": not problems,
     "ready": not problems,
@@ -813,6 +944,7 @@ def speaker_inversion_ready_state() -> dict[str, Any]:
     "hfHome": str(SPEAKER_HF_HOME),
     "hfHubOffline": dependency_state.get("hfHubOffline", ""),
     "transformersOffline": dependency_state.get("transformersOffline", ""),
+    "backboneConfigCache": backbone_config_state,
     "pythonCommand": python_command,
     "pythonPath": dependency_state.get("pythonPath", ""),
     "dependencies": dependency_state.get("dependencies", ""),
@@ -1129,6 +1261,16 @@ def run_speaker_inversion_job(job_id: str) -> None:
   try:
     job = update_speaker_job(job_id, status="preparing", phase="prepare_manifest")
     append_speaker_job_log(job, "Speaker Inversion prepare started.")
+    backbone_state = ensure_speaker_backbone_config_cache()
+    append_speaker_job_log(job, f"Backbone config cache: {backbone_state.get('message') or backbone_state.get('error') or 'unknown'}")
+    if not backbone_state.get("ok"):
+      update_speaker_job(
+        job_id,
+        status="failed",
+        phase="backbone_config",
+        error=f"backbone config cache failed: {backbone_state.get('error') or 'unknown error'}",
+      )
+      return
     source_dataset = Path(str(job["dataset_path"]))
     prepared_manifest = Path(str(job["prepared_manifest_path"]))
     latent_dir = Path(str(job["latent_dir"]))
