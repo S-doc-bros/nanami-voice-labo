@@ -40,3 +40,21 @@ IRODORI_SPEAKER_BASE_CHECKPOINT=/absolute/path/to/Irodori-TTS-500M-v3/model.safe
 ```
 
 Most users should not need this manual path setup.
+
+## Speaker Inversion Python
+
+Speaker Inversion uses `prepare_manifest.py` and `train.py` from Irodori-TTS.
+Before starting a job, the bridge verifies that the selected Python can import
+`torch`, `pandas`, `datasets`, and the Irodori codec.
+
+If that check fails or hangs in your local `third_party/Irodori-TTS/.venv`, set a
+known-good training runtime in `.env.local`:
+
+```bash
+IRODORI_SPEAKER_PYTHON=/absolute/path/to/python3.10
+IRODORI_SPEAKER_PYTHONPATH=/absolute/path/to/Irodori-TTS/.venv/lib/python3.10/site-packages
+IRODORI_SPEAKER_HF_HOME=/absolute/path/to/hf_home
+```
+
+This only changes Speaker Inversion. Text-to-voice generation can continue using
+the normal lab engine runtime.

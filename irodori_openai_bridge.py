@@ -66,6 +66,7 @@ IRODORI_LITE_ENABLED = os.environ.get("IRODORI_LITE_ENABLED", "1").strip().lower
 IRODORI_LITE_RUNNER = BASE_DIR / "irodori_lite_runner.py"
 UV_COMMAND = os.environ.get("IRODORI_UV", "uv")
 IRODORI_PYTHON = os.environ.get("IRODORI_PYTHON", "").strip()
+IRODORI_SPEAKER_PYTHON = os.environ.get("IRODORI_SPEAKER_PYTHON", "").strip()
 IRODORI_SPEAKER_PYTHONPATH = os.environ.get("IRODORI_SPEAKER_PYTHONPATH", "").strip()
 FFMPEG_COMMAND = os.environ.get("IRODORI_FFMPEG", "ffmpeg")
 DEEP_FILTER_COMMAND = os.environ.get("DEEP_FILTER_COMMAND", shutil.which("deep-filter") or str(Path.home() / ".local" / "bin" / "deep-filter"))
@@ -81,13 +82,9 @@ SPEAKER_INVERSION_BASE_CHECKPOINT = os.environ.get(
 ).strip()
 SPEAKER_INVERSION_CONFIG = IRODORI_REPO_DIR / "configs" / "train_500m_v3_speaker_inversion.yaml"
 SPEAKER_INVERSION_FINAL_NAME = "checkpoint_final.speaker.safetensors"
-SPEAKER_HF_HOME = Path(
-  os.environ.get(
-    "IRODORI_SPEAKER_HF_HOME",
-    VOICE_ENGINE_HOME / "hf_home",
-  )
-).expanduser()
-if not SPEAKER_HF_HOME.exists():
+_SPEAKER_HF_HOME_RAW = os.environ.get("IRODORI_SPEAKER_HF_HOME", "").strip()
+SPEAKER_HF_HOME = Path(_SPEAKER_HF_HOME_RAW or (VOICE_ENGINE_HOME / "hf_home")).expanduser()
+if not _SPEAKER_HF_HOME_RAW and not SPEAKER_HF_HOME.exists():
   SPEAKER_HF_HOME = RUNTIME_DIR / "huggingface"
 SPEAKER_UPLOAD_MAX_BYTES = int(os.environ.get("IRODORI_SPEAKER_UPLOAD_MAX_BYTES", str(640 * 1024 * 1024)))
 SPEAKER_UPLOAD_MAX_FILE_BYTES = int(os.environ.get("IRODORI_SPEAKER_UPLOAD_MAX_FILE_BYTES", str(64 * 1024 * 1024)))
@@ -277,7 +274,7 @@ def ready_state() -> dict[str, Any]:
     "modelDevice": os.environ.get("IRODORI_MODEL_DEVICE", ""),
     "codecDevice": os.environ.get("IRODORI_CODEC_DEVICE", ""),
     "cacheDir": str(RUNTIME_DIR),
-    "hfHome": str(RUNTIME_DIR / "huggingface"),
+    "hfHome": str(SPEAKER_HF_HOME),
     "speakerInversion": speaker_inversion_ready_state(),
     "timeoutSeconds": TIMEOUT_SECONDS,
     "models": models,
@@ -667,6 +664,8 @@ def default_speaker_train_device() -> str:
 
 
 def irodori_python_command() -> list[str]:
+  if IRODORI_SPEAKER_PYTHON:
+    return [IRODORI_SPEAKER_PYTHON]
   if IRODORI_PYTHON:
     return [IRODORI_PYTHON]
   venv_python = IRODORI_REPO_DIR / ".venv" / "bin" / "python"
@@ -685,6 +684,27 @@ def irodori_python_ready() -> tuple[bool, str]:
   if shutil.which(UV_COMMAND):
     return True, " ".join(command)
   return False, " ".join(command)
+
+
+def is_local_checkpoint_ref(value: str) -> bool:
+  ref = str(value or "").strip()
+  if not ref:
+    return False
+  expanded = os.path.expanduser(ref)
+  if os.path.isabs(expanded):
+    return True
+  if ref.startswith(("./", "../", "~")):
+    return True
+  return Path(ref).suffix.lower() in {".safetensors", ".pt", ".pth", ".ckpt", ".bin"}
+
+
+def checkpoint_ref_exists(value: str) -> bool:
+  ref = str(value or "").strip()
+  if not ref:
+    return False
+  if not is_local_checkpoint_ref(ref):
+    return True
+  return Path(ref).expanduser().is_file()
 
 
 def merge_pythonpath(base_env: dict[str, str], extra_pythonpath: str) -> dict[str, str]:
@@ -707,16 +727,29 @@ def speaker_python_dependency_state() -> dict[str, Any]:
     SPEAKER_PYTHON_DEPENDENCY_CACHE = {
       "ok": False,
       "pythonCommand": python_command,
+      "pythonPath": "",
+      "hfHome": "",
+      "hfHubOffline": "",
+      "transformersOffline": "",
       "error": f"Irodori python command not found: {python_command}",
     }
     return SPEAKER_PYTHON_DEPENDENCY_CACHE
   env = speaker_job_env()
+  probe_script = "\n".join(
+    [
+      "import torch",
+      "import pandas",
+      "from datasets import Audio, load_dataset",
+      "from irodori_tts.codec import DACVAECodec",
+      "print('speaker prepare dependencies ok')",
+    ]
+  )
   try:
     result = subprocess.run(
       [
         *command,
         "-c",
-        "import torch; print(getattr(torch, '__version__', 'unknown'))",
+        probe_script,
       ],
       cwd=IRODORI_REPO_DIR if IRODORI_REPO_DIR.is_dir() else BASE_DIR,
       env=env,
@@ -731,7 +764,10 @@ def speaker_python_dependency_state() -> dict[str, Any]:
       "ok": False,
       "pythonCommand": python_command,
       "pythonPath": env.get("PYTHONPATH", ""),
-      "error": str(error),
+      "hfHome": env.get("HF_HOME", ""),
+      "hfHubOffline": env.get("HF_HUB_OFFLINE", ""),
+      "transformersOffline": env.get("TRANSFORMERS_OFFLINE", ""),
+      "error": f"speaker prepare dependency check failed: {error}",
     }
     return SPEAKER_PYTHON_DEPENDENCY_CACHE
   output = (result.stdout or "").strip()
@@ -739,14 +775,16 @@ def speaker_python_dependency_state() -> dict[str, Any]:
     "ok": result.returncode == 0,
     "pythonCommand": python_command,
     "pythonPath": env.get("PYTHONPATH", ""),
-    "torch": output if result.returncode == 0 else "",
-    "error": "" if result.returncode == 0 else output or f"torch import failed with exit code {result.returncode}",
+    "hfHome": env.get("HF_HOME", ""),
+    "hfHubOffline": env.get("HF_HUB_OFFLINE", ""),
+    "transformersOffline": env.get("TRANSFORMERS_OFFLINE", ""),
+    "dependencies": output if result.returncode == 0 else "",
+    "error": "" if result.returncode == 0 else f"speaker prepare dependency check failed: {output or f'exit code {result.returncode}'}",
   }
   return SPEAKER_PYTHON_DEPENDENCY_CACHE
 
 
 def speaker_inversion_ready_state() -> dict[str, Any]:
-  base_path = Path(SPEAKER_INVERSION_BASE_CHECKPOINT).expanduser()
   active_jobs = [job for job in list_speaker_jobs() if job.get("status") in {"queued", "preparing", "training", "registering", "cancelling"}]
   python_ready, python_command = irodori_python_ready()
   dependency_state = speaker_python_dependency_state()
@@ -758,23 +796,26 @@ def speaker_inversion_ready_state() -> dict[str, Any]:
       problems.append(f"{filename} not found")
   if not SPEAKER_INVERSION_CONFIG.is_file():
     problems.append(f"speaker inversion config not found: {SPEAKER_INVERSION_CONFIG}")
-  if not base_path.is_file():
+  if not checkpoint_ref_exists(SPEAKER_INVERSION_BASE_CHECKPOINT):
     problems.append(f"base checkpoint not found: {SPEAKER_INVERSION_BASE_CHECKPOINT}")
   if not python_ready:
     problems.append(f"Irodori python command not found: {python_command}")
   if not dependency_state.get("ok"):
-    problems.append(f"speaker inversion python cannot import torch: {dependency_state.get('error') or 'unknown error'}")
+    problems.append(f"speaker inversion python cannot prepare dependencies: {dependency_state.get('error') or 'unknown error'}")
   return {
     "ok": not problems,
     "ready": not problems,
     "repoDir": str(IRODORI_REPO_DIR),
     "config": str(SPEAKER_INVERSION_CONFIG),
     "baseCheckpoint": SPEAKER_INVERSION_BASE_CHECKPOINT,
-    "baseCheckpointExists": base_path.is_file(),
+    "baseCheckpointExists": checkpoint_ref_exists(SPEAKER_INVERSION_BASE_CHECKPOINT),
+    "baseCheckpointIsLocal": is_local_checkpoint_ref(SPEAKER_INVERSION_BASE_CHECKPOINT),
     "hfHome": str(SPEAKER_HF_HOME),
+    "hfHubOffline": dependency_state.get("hfHubOffline", ""),
+    "transformersOffline": dependency_state.get("transformersOffline", ""),
     "pythonCommand": python_command,
     "pythonPath": dependency_state.get("pythonPath", ""),
-    "torch": dependency_state.get("torch", ""),
+    "dependencies": dependency_state.get("dependencies", ""),
     "jobsDir": str(SPEAKER_INVERSION_JOB_DIR),
     "finalArtifactsDir": str(GENERATED_FINAL_DIR),
     "deviceDefault": default_speaker_train_device(),
@@ -1266,7 +1307,7 @@ def list_final_artifacts() -> list[dict[str, Any]]:
         "sample_reference_voice": "nanami",
         "sample_reference_wav": str(BUNDLED_NANAMI_SAMPLE) if BUNDLED_NANAMI_SAMPLE.is_file() else "",
         "base_checkpoint": SPEAKER_INVERSION_BASE_CHECKPOINT,
-        "base_checkpoint_exists": Path(SPEAKER_INVERSION_BASE_CHECKPOINT).expanduser().is_file(),
+        "base_checkpoint_exists": checkpoint_ref_exists(SPEAKER_INVERSION_BASE_CHECKPOINT),
         "notes": manifest.get("notes") if isinstance(manifest.get("notes"), list) else [],
       })
     except (OSError, json.JSONDecodeError):
@@ -1312,7 +1353,7 @@ def list_final_artifacts() -> list[dict[str, Any]]:
         "job_id": str(manifest.get("job_id") or ""),
         "created_at": str(manifest.get("created_at") or ""),
         "base_checkpoint": str(manifest.get("base_checkpoint") or SPEAKER_INVERSION_BASE_CHECKPOINT),
-        "base_checkpoint_exists": Path(str(manifest.get("base_checkpoint") or SPEAKER_INVERSION_BASE_CHECKPOINT)).expanduser().is_file(),
+        "base_checkpoint_exists": checkpoint_ref_exists(str(manifest.get("base_checkpoint") or SPEAKER_INVERSION_BASE_CHECKPOINT)),
         "download_url": f"/v1/lab/final-artifacts/{safe_id}/checkpoint",
         "notes": manifest.get("notes") if isinstance(manifest.get("notes"), list) else [],
       })

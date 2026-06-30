@@ -471,6 +471,42 @@ def test_speaker_prepare_timeout_scales_for_large_material_sets():
     assert "else 900" not in bridge
 
 
+def test_speaker_inversion_uses_separate_python_and_full_prepare_dependency_probe():
+    bridge = read("irodori_openai_bridge.py")
+    bridge_start = read("Start Bridge Lab Only.command")
+    env_example = read(".env.example")
+    readme = read("README.md")
+    model_setup = read("MODEL_SETUP.md")
+
+    assert "IRODORI_SPEAKER_PYTHON" in bridge
+    assert "IRODORI_SPEAKER_PYTHON" in bridge_start
+    assert "if IRODORI_SPEAKER_PYTHON:" in bridge
+    assert "import pandas" in bridge
+    assert "from datasets import Audio, load_dataset" in bridge
+    assert "from irodori_tts.codec import DACVAECodec" in bridge
+    assert "speaker prepare dependency check failed" in bridge
+    assert "export NANAMI_VOICE_ENGINE_HOME=\"$VOICE_ENGINE_HOME\"" in bridge_start
+    assert "mkdir -p \"$VOICE_ENGINE_HF_HOME\"" in bridge_start
+    assert "export IRODORI_SPEAKER_HF_HOME=\"${IRODORI_SPEAKER_HF_HOME:-$VOICE_ENGINE_HF_HOME}\"" in bridge_start
+    assert '"hfHome": str(SPEAKER_HF_HOME)' in bridge
+    assert '"hfHubOffline": env.get("HF_HUB_OFFLINE", "")' in bridge
+    assert '"transformersOffline": env.get("TRANSFORMERS_OFFLINE", "")' in bridge
+    assert "IRODORI_SPEAKER_PYTHON=/absolute/path/to/python3.10" in env_example
+    assert "IRODORI_SPEAKER_PYTHON=/absolute/path/to/python3.10" in readme
+    assert "IRODORI_SPEAKER_PYTHON=/absolute/path/to/python3.10" in model_setup
+    assert "speaker prepare dependency check failed" in readme
+
+
+def test_speaker_inversion_accepts_hugging_face_checkpoint_ids_without_path_failure():
+    bridge = read("irodori_openai_bridge.py")
+
+    assert "def is_local_checkpoint_ref" in bridge
+    assert "def checkpoint_ref_exists" in bridge
+    assert 'checkpoint_ref_exists(SPEAKER_INVERSION_BASE_CHECKPOINT)' in bridge
+    assert 'Path(SPEAKER_INVERSION_BASE_CHECKPOINT).expanduser().is_file()' not in bridge
+    assert 'Path(str(manifest.get("base_checkpoint") or SPEAKER_INVERSION_BASE_CHECKPOINT)).expanduser().is_file()' not in bridge
+
+
 if __name__ == "__main__":
     test_generation_payload_uses_45_second_max_duration()
     test_expression_sets_are_gendered_and_include_power_shout()
@@ -497,4 +533,6 @@ if __name__ == "__main__":
     test_expression_header_uses_compact_layout()
     test_expression_generation_can_use_direct_voice_design_without_reference_audio()
     test_speaker_prepare_timeout_scales_for_large_material_sets()
+    test_speaker_inversion_uses_separate_python_and_full_prepare_dependency_probe()
+    test_speaker_inversion_accepts_hugging_face_checkpoint_ids_without_path_failure()
     print("voice labo static tests passed")

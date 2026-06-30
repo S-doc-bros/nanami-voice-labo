@@ -118,6 +118,7 @@ http://localhost:8088/v1
 - `IRODORI_FINAL_BASE_CHECKPOINT`: final artifact test base checkpoint path or Hugging Face model id. Default: `Aratako/Irodori-TTS-500M-v3`.
 - `IRODORI_FINAL_ENGINE_CONFIG`: optional final-engine config JSON path. Leave unset to use the generated default config.
 - `IRODORI_PYTHON`: Python executable for Irodori / Speaker Inversion.
+- `IRODORI_SPEAKER_PYTHON`: optional Python executable used only for Speaker Inversion `prepare_manifest.py` and `train.py`.
 - `IRODORI_SPEAKER_PYTHONPATH`: optional site-packages path for Speaker Inversion.
 - `IRODORI_SPEAKER_BASE_CHECKPOINT`: base checkpoint for Speaker Inversion.
 - `IRODORI_SPEAKER_HF_HOME`: Hugging Face cache used by Speaker Inversion.
@@ -137,6 +138,25 @@ third_party/Irodori-TTS
 
 This directory is ignored by Git. Keep Irodori-TTS and its license attribution
 separate when redistributing this lab.
+
+## Speaker Inversion Runtime Check
+
+The bridge checks the Speaker Inversion runtime before starting a job. It imports
+`torch`, `pandas`, `datasets`, and the Irodori codec with the same Python and
+`PYTHONPATH` that will run `prepare_manifest.py`.
+
+If the health screen says `speaker prepare dependency check failed`, the selected
+Python environment is not usable for Speaker Inversion. Copy `.env.example` to
+`.env.local` and set:
+
+```bash
+IRODORI_SPEAKER_PYTHON=/absolute/path/to/python3.10
+IRODORI_SPEAKER_PYTHONPATH=/absolute/path/to/Irodori-TTS/.venv/lib/python3.10/site-packages
+IRODORI_SPEAKER_HF_HOME=/absolute/path/to/hf_home
+```
+
+Use this when your default `third_party/Irodori-TTS/.venv` stalls while importing
+`pandas` or `datasets`, or when you keep a known-good training runtime elsewhere.
 
 ## Workflow
 
