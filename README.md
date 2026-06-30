@@ -35,6 +35,8 @@ Use your own licensed voice material and model files.
 
 ## Requirements
 
+- macOS / Apple Silicon is the recommended and currently verified environment.
+  Windows and Linux are possible in principle, but are not verified yet.
 - Python 3.10+ recommended for the bridge and engine runtime.
 - `ffmpeg` for audio conversion and processing.
 - An Irodori-TTS checkout, supplied with `IRODORI_REPO_DIR`.
