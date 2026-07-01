@@ -8,6 +8,10 @@ def read(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
 
 
+def stitched(*parts: str) -> str:
+    return "".join(parts)
+
+
 def test_generation_payload_uses_45_second_max_duration():
     client = read("lib/tts-client.js")
     bridge = read("irodori_openai_bridge.py")
@@ -247,16 +251,17 @@ def test_public_release_has_no_private_workspace_references():
         "assets/final/seed-voice-02-reference-mqx15gvj/manifest.json",
     ]
     combined = "\n".join(read(name) for name in files)
+
     forbidden = [
-        "/" + "Users/" + "shige",
+        stitched(chr(47), "Users", chr(47)),
         "Application" + " Support",
-        "SASAKO" + "dental_HP",
+        stitched("SASA", "KO", "d", "ental_HP"),
         "Dental" + " Aide",
         "Pix" + "ie",
-        "dental" + "-note",
-        "jp." + "sasako",
-        "sasako" + "-voice-memo-app",
-        "dental" + "-note-ai-desktop-research",
+        stitched("d", "ental", "-note"),
+        stitched("jp.", "sa", "sako"),
+        stitched("sa", "sako", "-voice-memo-app"),
+        stitched("d", "ental", "-note-ai-desktop-research"),
         "先生" + "のMac",
         "ご" + "主人様",
     ]
@@ -298,7 +303,7 @@ def test_public_sample_final_artifacts_are_explicitly_bundled_and_sanitized():
     for sample in samples:
         text = read(sample)
         assert "checkpoint_final.speaker.safetensors" in text
-        assert "/Users/" not in text
+        assert stitched(chr(47), "Users", chr(47)) not in text
         assert "Application" + " Support" not in text
         assert "Dental" + " Aide" not in text
         assert "Pix" + "ie" not in text
