@@ -45,7 +45,27 @@ Use your own licensed voice material and model files.
 
 ## Quick Start For Beginners
 
-Run the setup once:
+On the verified macOS / Apple Silicon path, the intended first launch flow is:
+
+1. Install the missing command-line tools if setup asks for them.
+2. Run setup once.
+3. Start the UI terminal.
+4. Start the bridge terminal.
+5. Open the local URL in your browser.
+
+If setup says `git` is missing, install Apple's command-line tools:
+
+```bash
+xcode-select --install
+```
+
+If setup says `uv` or `ffmpeg` is missing, install them with Homebrew:
+
+```bash
+brew install uv ffmpeg
+```
+
+Then run the setup once:
 
 ```bash
 cd /path/to/nanami-voice-labo
