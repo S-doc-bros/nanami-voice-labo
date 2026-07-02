@@ -1,175 +1,203 @@
 # NANAMI VOICE LABO
 
-NANAMI VOICE LABO is a local voice laboratory for Irodori-TTS / Irodori-TTS-Lite.
-It helps you create seed wav files, generate expression datasets, review clips by ear,
-run Speaker Inversion, and test the resulting `checkpoint_final.speaker.safetensors`.
+NANAMI VOICE LABO は、Irodori-TTS / Irodori-TTS-Lite を使って声を作り、
+表現音を集め、Speaker Inversion の成果物を試せるローカル音声ラボです。
 
-The repository is source-first by default. It bundles only two small, reviewed public
-sample final artifacts for the `成果物テスト` screen. It does not bundle private
-reference voices, generated wav files, model weights, local caches, or runtime outputs.
+日本語での利用を前提に、まず「起動できること」「音声を作れること」
+「作った素材を最終成果物として試せること」を優先しています。
 
-## What It Does
+このリポジトリはソースコード中心です。公開用に確認済みの小さなサンプル成果物を
+2つだけ同梱していますが、参照音声、生成した wav、モデル本体、ローカルキャッシュ、
+実行ログ、作業中の成果物は含めません。
 
-- Generate a seed wav from a voice design prompt and text.
-- Import your own reference wav and compare generated results.
-- Create expression sets for laughter, breath, coughing, swallowing, panic, crying,
-  strong shouts, and other hard-to-capture vocal textures.
-- Review generated clips manually and mark them as accepted, audio-only accepted,
-  held, recorded, or rejected.
-- Export accepted wav files and metadata as a dataset.
-- Run a local Speaker Inversion job and register the resulting safetensors artifact.
-- Test completed artifacts from the final test tab.
+## できること
 
-## What Is Not Included
+- 声の説明文と読み上げテキストから seed wav を作る
+- 手元の参照 wav を読み込み、生成結果を比較する
+- 笑い、息づかい、むせ、飲み込み、口腔音、絶叫、泣き、強い叫びなどの表現音候補を作る
+- 生成した候補を耳で確認して、採用、音だけ採用、保留、録音、ボツに分ける
+- 採用した wav とメタデータを書き出す
+- ローカルで Speaker Inversion を実行し、`checkpoint_final.speaker.safetensors` を作る
+- 完成した成果物を `成果物テスト` タブで試す
 
-The following files are intentionally excluded from the public repository:
+## 含まれていないもの
 
-- Reference voice wav files.
-- Generated wav files.
-- Additional or private `checkpoint_final.speaker.safetensors` artifacts, except the two curated public samples in `assets/final/`.
-- Irodori model weights.
-- GGUF scriptwriter models.
-- `.runtime/` logs, caches, job outputs, and local review data.
+公開リポジトリには、次のものを入れない方針です。
 
-Use your own licensed voice material and model files.
+- 参照音声 wav
+- 生成した wav
+- 追加の `checkpoint_final.speaker.safetensors`
+- Irodori のモデル本体
+- GGUF scriptwriter モデル
+- `.runtime/` 以下のログ、キャッシュ、ジョブ出力、作業データ
 
-## Requirements
+声素材やモデルは、それぞれのライセンスと利用条件を確認して、自分で用意してください。
 
-- macOS / Apple Silicon is the recommended and currently verified environment.
-  Windows and Linux are possible in principle, but are not verified yet.
-- Python 3.10+ recommended for the bridge and engine runtime.
-- `ffmpeg` for audio conversion and processing.
-- An Irodori-TTS checkout, supplied with `IRODORI_REPO_DIR`.
-- Optional Irodori-TTS-Lite dependencies for Lite inference.
-- Optional local OpenAI-compatible scriptwriter endpoint for prompt-assisted text generation.
+## 動作環境
 
-## Quick Start For Beginners
+- 推奨: macOS / Apple Silicon
+- Python 3.10 以上
+- 音声変換用の `ffmpeg`
+- 依存管理用の `uv`
+- Irodori-TTS のチェックアウト
 
-On the verified macOS / Apple Silicon path, the intended first launch flow is:
+Windows / Linux でも原理的には動く可能性がありますが、現時点では未検証です。
 
-1. Install the missing command-line tools if setup asks for them.
-2. Run setup once.
-3. Start the UI terminal.
-4. Start the bridge terminal.
-5. Open the local URL in your browser.
+## 初回起動
 
-If setup says `git` is missing, install Apple's command-line tools:
+macOS / Apple Silicon での基本の流れです。
+
+1. 足りないコマンドラインツールを入れる
+2. セットアップを1回実行する
+3. UIを起動する
+4. bridgeを起動する
+5. ブラウザでローカルURLを開く
+
+`git` が無いと言われたら、Apple のコマンドラインツールを入れます。
 
 ```bash
 xcode-select --install
 ```
 
-If setup says `uv` or `ffmpeg` is missing, install them with Homebrew:
+`uv` や `ffmpeg` が無いと言われたら、Homebrew で入れます。
 
 ```bash
 brew install uv ffmpeg
 ```
 
-Then run the setup once:
+次に、セットアップを1回だけ実行します。
 
 ```bash
 cd /path/to/nanami-voice-labo
 ./Setup\ Irodori.command
 ```
 
-Then start the UI:
+UIを起動します。
 
 ```bash
 ./Start\ UI.command
 ```
 
-Open:
+ブラウザで開きます。
 
 ```text
 http://localhost:5190
 ```
 
-In another terminal, start the full local lab bridge:
+別のTerminalで、ローカルbridgeを起動します。
 
 ```bash
 ./Start\ Bridge\ Lab\ Only.command
 ```
 
-The first generation may take several minutes because the Irodori model files are
-downloaded from Hugging Face automatically:
+初回は Hugging Face から Irodori のモデルを取得するため、数分かかることがあります。
 
 - `Aratako/Irodori-TTS-600M-v3-VoiceDesign`
 - `Aratako/Irodori-TTS-500M-v3`
 
-`Start Bridge Lab Only.command` waits up to 10 minutes for the VoiceDesign engine
-on first startup. After the first download, the models are cached locally and
-startup is much faster.
+`Start Bridge Lab Only.command` は、初回の VoiceDesign エンジン起動を最大10分待ちます。
+一度モデルが入れば、次回以降の起動はかなり速くなります。
 
-See [MODEL_SETUP.md](MODEL_SETUP.md) if you want to use manually downloaded
-`model.safetensors` files.
+手動で取得した `model.safetensors` を使いたい場合は [MODEL_SETUP.md](MODEL_SETUP.md) を見てください。
 
-## Manual Start
+## 普段の起動
+
+UI:
 
 ```bash
 cd /path/to/nanami-voice-labo
 ./Start\ UI.command
 ```
 
-Open:
+開くURL:
 
 ```text
 http://localhost:5190
 ```
 
-Start the bridge after setting paths for your local runtime:
+bridge:
 
 ```bash
 cd /path/to/nanami-voice-labo
-export IRODORI_REPO_DIR=/path/to/Irodori-TTS
-export IRODORI_LAB_VOICE_MODEL=Aratako/Irodori-TTS-600M-v3-VoiceDesign
-export IRODORI_FINAL_BASE_CHECKPOINT=Aratako/Irodori-TTS-500M-v3
 ./Start\ Bridge\ Lab\ Only.command
 ```
 
-The default API URL in the UI is:
+UI内のAPI URLは通常このままで使えます。
 
 ```text
 http://localhost:8088/v1
 ```
 
-## Useful Environment Variables
+## 主な使い方
 
-- `IRODORI_REPO_DIR`: path to your local Irodori-TTS checkout.
-- `NANAMI_VOICE_ENGINE_HOME`: directory containing local model files, config, and Hugging Face cache.
-- `IRODORI_LAB_VOICE_MODEL`: VoiceDesign checkpoint path or Hugging Face model id. Default: `Aratako/Irodori-TTS-600M-v3-VoiceDesign`.
-- `IRODORI_FINAL_BASE_CHECKPOINT`: final artifact test base checkpoint path or Hugging Face model id. Default: `Aratako/Irodori-TTS-500M-v3`.
-- `IRODORI_FINAL_ENGINE_CONFIG`: optional final-engine config JSON path. Leave unset to use the generated default config.
-- `IRODORI_PYTHON`: Python executable for Irodori / Speaker Inversion.
-- `IRODORI_SPEAKER_PYTHON`: optional Python executable used only for Speaker Inversion `prepare_manifest.py` and `train.py`.
-- `IRODORI_SPEAKER_PYTHONPATH`: optional site-packages path for Speaker Inversion.
-- `IRODORI_SPEAKER_BASE_CHECKPOINT`: base checkpoint for Speaker Inversion.
-- `IRODORI_SPEAKER_HF_HOME`: Hugging Face cache used by Speaker Inversion.
-- `IRODORI_SCRIPTWRITER_ENDPOINT`: optional OpenAI-compatible scriptwriter endpoint.
-- `IRODORI_SCRIPTWRITER_AUTOSTART=0`: disable local scriptwriter autostart.
-- `IRODORI_LAB_ENGINE_START_TIMEOUT`: seconds to wait for the VoiceDesign engine. Default: `600`.
-- `IRODORI_FINAL_ENGINE_START_TIMEOUT`: seconds to wait for the final test engine. Default: `300`.
+1. `テキストから生成` で、声の説明文とテキストから seed wav を作る
+2. `表現音セット` で、表現音候補を作る
+3. `人間チェック` で、耳で聞いて採用する候補を選ぶ
+4. `調整から成果物` で、Speaker Inversion の成果物を作る
+5. `成果物テスト` で、完成した声を試す
 
-## Irodori-TTS Dependency
+最初は12本や50本の少ない候補で試して、うまくいく声だと確認してから本番数に増やすと扱いやすいです。
 
-NANAMI VOICE LABO is not Irodori-TTS itself. It uses Irodori-TTS as the speech
-runtime. The setup command clones Irodori-TTS into:
+## 保存場所
+
+実行中のデータは次に保存されます。
 
 ```text
-third_party/Irodori-TTS
+.runtime/
 ```
 
-This directory is ignored by Git. Keep Irodori-TTS and its license attribution
-separate when redistributing this lab.
+ここには、生成音声、ログ、Speaker Inversion のジョブ、Hugging Face キャッシュ、
+ローカルで作った最終成果物などが入ります。
 
-## Speaker Inversion Runtime Check
+`.runtime/` は Git 管理外です。公開したいものだけを自分で明示的に書き出してください。
 
-The bridge checks the Speaker Inversion runtime before starting a job. It imports
-`torch`, `pandas`, `datasets`, and the Irodori codec with the same Python and
-`PYTHONPATH` that will run `prepare_manifest.py`.
+ローカルで作った最終成果物は次に保存されます。
 
-If the health screen says `speaker prepare dependency check failed`, the selected
-Python environment is not usable for Speaker Inversion. Copy `.env.example` to
-`.env.local` and set:
+```text
+.runtime/final_artifacts/
+```
+
+公開リポジトリに同梱している確認済みサンプル成果物は、この2つだけです。
+
+```text
+assets/final/sample-voice-01-01-mqxvg6zm/
+assets/final/seed-voice-02-reference-mqx15gvj/
+```
+
+他の成果物をGitへ追加する場合は、素材の利用条件、内容、ローカルパスの混入、由来を確認してください。
+
+## よく使う環境変数
+
+必要な場合だけ `.env.example` を `.env.local` にコピーして編集します。
+
+- `IRODORI_REPO_DIR`: Irodori-TTS の場所
+- `NANAMI_VOICE_ENGINE_HOME`: モデル、設定、Hugging Face キャッシュを置く場所
+- `IRODORI_LAB_VOICE_MODEL`: VoiceDesign 用チェックポイント、または Hugging Face モデルID
+- `IRODORI_FINAL_BASE_CHECKPOINT`: 成果物テスト用のベースチェックポイント、または Hugging Face モデルID
+- `IRODORI_FINAL_ENGINE_CONFIG`: 成果物テスト用の設定JSON。通常は空でOK
+- `IRODORI_PYTHON`: Irodori / Speaker Inversion に使うPython
+- `IRODORI_SPEAKER_PYTHON`: Speaker Inversion の `prepare_manifest.py` / `train.py` だけに使うPython
+- `IRODORI_SPEAKER_PYTHONPATH`: Speaker Inversion 用の site-packages
+- `IRODORI_SPEAKER_BASE_CHECKPOINT`: Speaker Inversion のベースチェックポイント
+- `IRODORI_SPEAKER_HF_HOME`: Speaker Inversion 用の Hugging Face キャッシュ
+- `IRODORI_SCRIPTWRITER_ENDPOINT`: 任意のOpenAI互換scriptwriter endpoint
+- `IRODORI_SCRIPTWRITER_AUTOSTART=0`: ローカルscriptwriterの自動起動を止める
+- `IRODORI_LAB_ENGINE_START_TIMEOUT`: VoiceDesign エンジンの起動待ち秒数。初期値は `600`
+- `IRODORI_FINAL_ENGINE_START_TIMEOUT`: 成果物テスト用エンジンの起動待ち秒数。初期値は `300`
+
+## Speaker Inversion の確認
+
+最終成果物を作る前に、bridge は Speaker Inversion 用Pythonで次をimportできるか確認します。
+
+- `torch`
+- `pandas`
+- `datasets`
+- Irodori codec
+
+画面やhealthに `speaker prepare dependency check failed` と出る場合は、
+Speaker Inversion に使うPython環境が足りていません。
+
+その場合は `.env.local` に次のように設定します。
 
 ```bash
 IRODORI_SPEAKER_PYTHON=/absolute/path/to/python3.10
@@ -177,66 +205,46 @@ IRODORI_SPEAKER_PYTHONPATH=/absolute/path/to/Irodori-TTS/.venv/lib/python3.10/si
 IRODORI_SPEAKER_HF_HOME=/absolute/path/to/hf_home
 ```
 
-Use this when your default `third_party/Irodori-TTS/.venv` stalls while importing
-`pandas` or `datasets`, or when you keep a known-good training runtime elsewhere.
+これは最終成果物作成だけに効きます。テキストから音声を作る通常生成とは分けて扱えます。
 
-## Workflow
+## Irodori-TTS について
 
-1. In `テキストから生成`, design or import a voice and generate a seed wav.
-2. In `表現音セット`, create a small test set first, then larger candidate sets.
-3. In `人間チェック`, listen and decide which clips are worth keeping.
-4. In `調整から成果物`, build a Speaker Inversion artifact from accepted material.
-5. In `成果物テスト`, select a completed artifact and generate test speech.
+NANAMI VOICE LABO は Irodori-TTS 本体ではありません。
+音声生成ランタイムとして Irodori-TTS を利用します。
 
-## Storage
-
-Runtime data is written under:
+セットアップでは、Irodori-TTS を次に取得します。
 
 ```text
-.runtime/
+third_party/Irodori-TTS
 ```
 
-This directory is ignored by Git. It may contain generated audio, local logs,
-Speaker Inversion jobs, Hugging Face caches, and final artifacts.
+このディレクトリは Git 管理外です。再配布時は、Irodori-TTS とそのライセンス表記を分けて扱ってください。
 
-Final artifacts created by the lab are stored under:
+## 公開前チェック
 
-```text
-.runtime/final_artifacts/
-```
+公開やリリース前には、少なくとも次を確認してください。
 
-Export only the files you intentionally want to share.
+- `.runtime/` が含まれていない
+- `assets/reference/` に参照 wav が入っていない
+- `assets/final/` には確認済みサンプルだけが入っている
+- ローカル絶対パス、APIキー、トークン、生成モデルファイルをステージしていない
 
-The public repository intentionally includes only these reviewed sample final artifacts:
-
-```text
-assets/final/sample-voice-01-01-mqxvg6zm/
-assets/final/seed-voice-02-reference-mqx15gvj/
-```
-
-Do not add other generated artifacts to Git unless they have been reviewed for
-licensing, content, private paths, and source material.
-
-## Publishing Notes
-
-Before publishing or tagging a release, check that:
-
-- `.runtime/` is not included.
-- `assets/reference/` contains no private wav files.
-- `assets/final/` contains only the two reviewed public sample safetensors artifacts.
-- No local absolute paths, API keys, tokens, or generated model files are staged.
-
-The included `.gitignore` is intentionally conservative and excludes common audio,
-model, log, cache, and export artifacts.
+このリポジトリの `.gitignore` は、音声、モデル、ログ、キャッシュ、書き出し物を広めに除外しています。
 
 ## License
 
-NANAMI VOICE LABO is released under the MIT License. See [LICENSE](LICENSE).
+NANAMI VOICE LABO のソースコードは MIT License です。詳細は [LICENSE](LICENSE) を見てください。
 
-This license applies to the NANAMI VOICE LABO source code and the reviewed sample
-files intentionally included in this repository. It does not grant rights to
-Irodori-TTS, Irodori model weights, third-party dependencies, private voice
-recordings, generated datasets, or user-created speaker artifacts.
+このライセンスは、このリポジトリ内のNANAMI VOICE LABOのソースコードと、
+意図して同梱した確認済みサンプルファイルに適用されます。
+Irodori-TTS、Irodoriのモデル、サードパーティ依存、利用者が用意した声素材、
+生成データセット、利用者が作成したspeaker artifactには適用されません。
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency, model, and
-audio-material notes.
+依存関係、モデル、音声素材に関する注意は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を見てください。
+
+## English Short Note
+
+NANAMI VOICE LABO is a local voice lab for Irodori-TTS / Irodori-TTS-Lite.
+It helps create seed wav files, expression datasets, Speaker Inversion artifacts,
+and final voice tests. The repository is source-first and does not include model
+weights, generated wav files, runtime caches, or private reference voices.

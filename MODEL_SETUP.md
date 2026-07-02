@@ -1,37 +1,37 @@
-# Model Setup
+# モデル準備
 
-NANAMI VOICE LABO does not include Irodori-TTS model weights.
+NANAMI VOICE LABO には、Irodori-TTS のモデル本体は含まれていません。
 
-The easiest path is:
+基本的には、次の流れで自動準備されます。
 
-1. Run `./Setup Irodori.command`.
-2. Run `./Start UI.command`.
-3. Run `./Start Bridge Lab Only.command`.
-4. Generate a short test voice.
+1. `./Setup Irodori.command` を実行する
+2. `./Start UI.command` を実行する
+3. `./Start Bridge Lab Only.command` を実行する
+4. 短いテスト音声を生成する
 
-On the first generation, the bridge downloads these Hugging Face models automatically:
+初回生成時に、bridge が Hugging Face から次のモデルを取得します。
 
 - `Aratako/Irodori-TTS-600M-v3-VoiceDesign`
 - `Aratako/Irodori-TTS-500M-v3`
 
-The download can take several minutes. `Start Bridge Lab Only.command` waits up
-to 10 minutes for the first VoiceDesign startup by default. After that, the files
-are cached locally.
+ダウンロードには数分かかることがあります。
+`Start Bridge Lab Only.command` は、初回の VoiceDesign 起動を標準で最大10分待ちます。
+一度取得すれば、モデルはローカルにキャッシュされます。
 
-## Where Irodori-TTS Goes
+## Irodori-TTS の場所
 
-The setup command clones Irodori-TTS here:
+セットアップコマンドは、Irodori-TTS を次に取得します。
 
 ```text
 third_party/Irodori-TTS
 ```
 
-This directory is ignored by Git.
+このディレクトリは Git 管理外です。
 
-## Manual Model Paths
+## 手動でモデルを指定する場合
 
-If you already downloaded `model.safetensors` files, copy `.env.example` to
-`.env.local` and edit these values:
+すでに `model.safetensors` を手元に持っている場合は、
+`.env.example` を `.env.local` にコピーして、次を編集します。
 
 ```bash
 IRODORI_LAB_VOICE_MODEL=/absolute/path/to/Irodori-TTS-600M-v3-VoiceDesign/model.safetensors
@@ -39,16 +39,20 @@ IRODORI_FINAL_BASE_CHECKPOINT=/absolute/path/to/Irodori-TTS-500M-v3/model.safete
 IRODORI_SPEAKER_BASE_CHECKPOINT=/absolute/path/to/Irodori-TTS-500M-v3/model.safetensors
 ```
 
-Most users should not need this manual path setup.
+通常はこの手動設定は不要です。
 
-## Speaker Inversion Python
+## Speaker Inversion 用Python
 
-Speaker Inversion uses `prepare_manifest.py` and `train.py` from Irodori-TTS.
-Before starting a job, the bridge verifies that the selected Python can import
-`torch`, `pandas`, `datasets`, and the Irodori codec.
+Speaker Inversion では、Irodori-TTS の `prepare_manifest.py` と `train.py` を使います。
+ジョブ開始前に、bridge は選択されたPythonで次をimportできるか確認します。
 
-If that check fails or hangs in your local `third_party/Irodori-TTS/.venv`, set a
-known-good training runtime in `.env.local`:
+- `torch`
+- `pandas`
+- `datasets`
+- Irodori codec
+
+もしこの確認で失敗したり、import中に止まる場合は、`.env.local` に動作確認済みの
+Python環境を指定してください。
 
 ```bash
 IRODORI_SPEAKER_PYTHON=/absolute/path/to/python3.10
@@ -56,5 +60,5 @@ IRODORI_SPEAKER_PYTHONPATH=/absolute/path/to/Irodori-TTS/.venv/lib/python3.10/si
 IRODORI_SPEAKER_HF_HOME=/absolute/path/to/hf_home
 ```
 
-This only changes Speaker Inversion. Text-to-voice generation can continue using
-the normal lab engine runtime.
+この設定は Speaker Inversion だけに効きます。
+テキストから音声を作る通常生成は、通常のラボエンジンを使い続けられます。

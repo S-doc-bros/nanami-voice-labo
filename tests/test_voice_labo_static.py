@@ -290,7 +290,7 @@ def test_public_sample_final_artifacts_are_explicitly_bundled_and_sanitized():
         "assets/final/seed-voice-02-reference-mqx15gvj/manifest.json",
     ]
 
-    assert "two small, reviewed public" in readme
+    assert "確認済みサンプル成果物は、この2つだけ" in readme
     assert "assets/final/sample-voice-01-01-mqxvg6zm/" in readme
     assert "assets/final/seed-voice-02-reference-mqx15gvj/" in readme
     assert "!assets/final/sample-voice-01-01-mqxvg6zm/checkpoint_final.speaker.safetensors" in gitignore
